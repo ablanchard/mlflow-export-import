@@ -22,8 +22,19 @@ class ExperimentExporter():
         :param notebook_formats: List of notebook formats to export. Values are SOURCE, HTML, JUPYTER or DBC.
         """
         self.mlflow_client = mlflow_client
+        self.skip_previous_ok_runs = True
         self.run_exporter = RunExporter(self.mlflow_client, notebook_formats=notebook_formats)
 
+    def _get_previous_ok_runs(self, output_dir):
+        manifest_path = os.path.join(output_dir, "experiment.json")
+        if not os.path.exists(manifest_path):
+            return []
+        manifest = io_utils.read_file(manifest_path)
+        if "export_info" in manifest:
+            return manifest["export_info"]["ok_runs"]
+        if "mlflow" in manifest:
+            return manifest["mlflow"]["runs"]
+        raise Exception("Unknown manifest format")
 
     def export_experiment(self, exp_id_or_name, output_dir, run_ids=None):
         """
@@ -37,13 +48,14 @@ class ExperimentExporter():
         ok_run_ids = []
         failed_run_ids = []
         j = -1
+        previous_ok_runs = self._get_previous_ok_runs(output_dir)
         if run_ids:
             for j,run_id in enumerate(run_ids):
                 run = self.mlflow_client.get_run(run_id)
-                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids)
+                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs)
         else:
             for j,run in enumerate(SearchRunsIterator(self.mlflow_client, exp.experiment_id)):
-                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids)
+                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs)
 
         info_attr = {
             "num_total_runs": (j+1),
@@ -66,10 +78,14 @@ class ExperimentExporter():
         return len(ok_run_ids), len(failed_run_ids) 
 
 
-    def _export_run(self, idx, run, output_dir, ok_run_ids, failed_run_ids):
+    def _export_run(self, idx, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs):
         run_dir = os.path.join(output_dir, run.info.run_id)
-        print(f"Exporting run {idx+1}: {run.info.run_id}")
-        res = self.run_exporter.export_run(run.info.run_id, run_dir)
+        if self.skip_previous_ok_runs and run.info.run_id in previous_ok_runs:
+            print(f"Skipping run {idx+1}: {run.info.run_id}")
+            res = True
+        else:
+            print(f"Exporting run {idx+1}: {run.info.run_id}")
+            res = self.run_exporter.export_run(run.info.run_id, run_dir)
         if res:
             ok_run_ids.append(run.info.run_id)
         else:

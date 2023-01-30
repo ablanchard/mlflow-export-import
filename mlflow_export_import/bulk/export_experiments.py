@@ -107,7 +107,7 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, u
 @opt_output_dir
 @opt_notebook_formats
 @opt_use_threads
-def main(experiments, output_dir, notebook_formats, use_threads): 
+def main(experiments, output_dir, notebook_formats, use_threads):
     print("Options:")
     for k,v in locals().items():
         print(f"  {k}: {v}")
