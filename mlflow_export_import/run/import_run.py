@@ -80,6 +80,7 @@ class RunImporter():
 
         run = self.mlflow_client.create_run(exp.experiment_id)
         run_id = run.info.run_id
+        self.mlflow_client.set_tag(run_id, "legacy_id", src_run_dct["info"]["run_id"])
         try:
             self._import_run_data(src_run_dct, run_id, src_run_dct["info"]["user_id"])
             path = os.path.join(input_dir, "artifacts")

@@ -81,6 +81,7 @@ class ExperimentImporter():
         new_id_message = f"Migrated from id: {exp_dct['experiment']['experiment_id']} \n"
         description = new_id_message + tags["mlflow.note.content"] if "mlflow.note.content" in tags else new_id_message
         self.mlflow_client.set_experiment_tag(experiment_id, "mlflow.note.content", description)
+        self.mlflow_client.set_experiment_tag(experiment_id, "legacy_id", exp_dct['experiment']['experiment_id'])
 
         previous_import["dst_experiment_id"] = experiment_id
         previous_import["src_experiement_id"] = exp_dct["experiment"]["experiment_id"]
