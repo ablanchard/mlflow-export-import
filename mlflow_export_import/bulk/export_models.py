@@ -65,7 +65,7 @@ def export_models(client, model_names, output_dir, notebook_formats=None, stages
     start_time = time.time()
     out_dir = os.path.join(output_dir, "experiments")
     exps_to_export = exp_ids if export_all_runs else exps_and_runs
-    export_experiments.export_experiments(client, exps_to_export, out_dir, notebook_formats, use_threads)
+    #export_experiments.export_experiments(client, exps_to_export, out_dir, notebook_formats, use_threads)
     _export_models(client, model_names, os.path.join(output_dir,"models"), notebook_formats, stages, export_run=False, use_threads=use_threads)
     duration = round(time.time()-start_time, 1)
     print(f"Duration for total registered models and versions' runs export: {duration} seconds")
