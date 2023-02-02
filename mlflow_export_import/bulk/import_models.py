@@ -15,6 +15,8 @@ from mlflow_export_import.experiment.import_experiment import ExperimentImporter
 from mlflow_export_import.model.import_model import AllModelImporter
 
 
+EXPERIMENT_FOLDER = "experiments-2023-01-17"
+
 def _remap(run_info_map):
     res = {}
     for dct in run_info_map.values():
@@ -26,7 +28,7 @@ def _remap(run_info_map):
 def _import_experiments(client, input_dir, use_src_user_id):
     start_time = time.time()
 
-    dct = io_utils.read_file_mlflow(os.path.join(os.path.join(input_dir,"experiments","experiments.json")))
+    dct = io_utils.read_file_mlflow(os.path.join(os.path.join(input_dir,EXPERIMENT_FOLDER,"experiments.json")))
     exps = dct["experiments"]
 
     importer = ExperimentImporter(client, use_src_user_id=use_src_user_id)
@@ -37,7 +39,7 @@ def _import_experiments(client, input_dir, use_src_user_id):
     exceptions = []
 
     for exp in exps: 
-        exp_input_dir = os.path.join(input_dir, "experiments", exp["id"])
+        exp_input_dir = os.path.join(input_dir, EXPERIMENT_FOLDER, exp["id"])
         try:
             _run_info_map = importer.import_experiment( exp["name"], exp_input_dir)
             run_info_map[exp["id"]] = _run_info_map
@@ -72,12 +74,12 @@ def _import_models(client, input_dir, run_info_map, delete_model, import_source_
     return { "models": len(models), "duration": duration }
 
 def read_imported_experiments(input_dir):
-    dct = io_utils.read_file_mlflow(os.path.join(os.path.join(input_dir,"experiments","experiments.json")))
+    dct = io_utils.read_file_mlflow(os.path.join(os.path.join(input_dir,EXPERIMENT_FOLDER,"experiments.json")))
     exps = dct["experiments"]
 
     results = {}
     for exp in exps:
-        imported = io_utils.read_file(os.path.join(os.path.join(input_dir,"experiments", exp["id"],"import-experiment.json")))
+        imported = io_utils.read_file(os.path.join(os.path.join(input_dir,EXPERIMENT_FOLDER, exp["id"],"import-experiment.json")))
         results = { **results, **imported["runs"] }
     return results
 
