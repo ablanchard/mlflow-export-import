@@ -71,14 +71,25 @@ def _import_models(client, input_dir, run_info_map, delete_model, import_source_
     duration = round(time.time()-start_time, 1)
     return { "models": len(models), "duration": duration }
 
+def read_imported_experiments(input_dir):
+    dct = io_utils.read_file_mlflow(os.path.join(os.path.join(input_dir,"experiments","experiments.json")))
+    exps = dct["experiments"]
+
+    results = {}
+    for exp in exps:
+        imported = io_utils.read_file(os.path.join(os.path.join(input_dir,"experiments", exp["id"],"import-experiment.json")))
+        results = { **results, **imported["runs"] }
+    return results
+
 
 def import_all(client, input_dir, delete_model, use_src_user_id=False, import_source_tags=False, verbose=False, use_threads=False):
     start_time = time.time()
-    exp_res = _import_experiments(client, input_dir, use_src_user_id)
-    run_info_map = _remap(exp_res[0])
+    #exp_res = _import_experiments(client, input_dir, use_src_user_id)
+    #run_info_map = _remap(exp_res[0])
+    run_info_map = read_imported_experiments(input_dir)
     model_res = _import_models(client, input_dir, run_info_map, delete_model, import_source_tags, verbose, use_threads)
     duration = round(time.time()-start_time, 1)
-    dct = { "duration": duration, "experiment_import": exp_res[1], "model_import": model_res }
+    dct = { "duration": duration, "model_import": model_res }
     io_utils.write_file("import_report.json", dct)
     print("\nImport report:")
     print(json.dumps(dct,indent=2)+"\n")

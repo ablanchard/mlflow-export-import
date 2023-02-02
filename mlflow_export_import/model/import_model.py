@@ -59,7 +59,8 @@ class BaseModelImporter():
             description=src_vr["description"], tags=tags, **kwargs)
 
         model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, version, sleep_time=sleep_time)
-        self.mlflow_client.transition_model_version_stage(model_name, version.version, src_vr["current_stage"])
+        if src_vr["current_stage"] != "None":
+            self.mlflow_client.transition_model_version_stage(model_name, version.version, src_vr["current_stage"])
 
 
     def _import_model(self, model_name, input_dir, delete_model=False):
@@ -167,7 +168,7 @@ class AllModelImporter(BaseModelImporter):
         self.run_info_map = run_info_map
 
 
-    def import_model(self, model_name, input_dir, delete_model=False, verbose=False, sleep_time=30):
+    def import_model(self, model_name, input_dir, delete_model=False, verbose=False, sleep_time=3):
         """
         :param model_name: Model name.
         :param input_dir: Input directory.
@@ -177,10 +178,11 @@ class AllModelImporter(BaseModelImporter):
         :return: Model import manifest.
         """
         model_dct = self._import_model(model_name, input_dir, delete_model)
-        print("Importing latest versions:")
+        print(f"Importing {len(model_dct['latest_versions'])} latest versions:")
         for vr in model_dct["latest_versions"]:
+            print(f"Doing {vr['run_id']} version {vr['version']}")
             src_run_id = vr["run_id"]
-            dst_run_id = self.run_info_map[src_run_id].run_id
+            dst_run_id = self.run_info_map[src_run_id]["dst_run_id"]
             mlflow.set_experiment(vr["_experiment_name"])
             self.import_version(model_name, vr, dst_run_id, sleep_time)
         if verbose:
@@ -189,7 +191,7 @@ class AllModelImporter(BaseModelImporter):
     def import_version(self, model_name, src_vr, dst_run_id, sleep_time):
         src_run_id = src_vr["run_id"]
         model_path = _extract_model_path(src_vr["source"], src_run_id)
-        dst_artifact_uri = self.run_info_map[src_run_id].artifact_uri
+        dst_artifact_uri = self.run_info_map[src_run_id]["artifact_uri"]
         dst_source = f"{dst_artifact_uri}/{model_path}"
         self._import_version(model_name, src_vr, dst_run_id, dst_source, sleep_time)
 
