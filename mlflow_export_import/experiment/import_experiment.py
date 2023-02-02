@@ -46,10 +46,8 @@ class ExperimentImporter():
             return io_utils.read_file(path)
         return {"runs": {}}
 
-    def save_import_status(self, input_dir, previous_import, run_ids_map):
-        # Adding the run_id_map to the previous import status.
-        previous_import["runs"] = { **previous_import["runs"], **run_ids_map }
-
+    def save_import_status(self, input_dir, previous_import, merge_runs):
+        previous_import["runs"] = merge_runs
         path = os.path.join(input_dir, "import-experiment.json")
         io_utils.write_file(path, previous_import)
 
@@ -77,7 +75,12 @@ class ExperimentImporter():
             set_source_tags_for_field(exp, tags)
             fmt_timestamps("creation_time", exp, tags)
             fmt_timestamps("last_update_time", exp, tags)
+        
         experiment_id = mlflow_utils.set_experiment(self.mlflow_client, self.dbx_client, exp_name, tags)
+        # Copy content of tag and add experiment_id
+        new_id_message = f"Migrated from id: {exp_dct['experiment']['experiment_id']} \n"
+        description = new_id_message + tags["mlflow.note.content"] if "mlflow.note.content" in tags else new_id_message
+        self.mlflow_client.set_experiment_tag(experiment_id, "mlflow.note.content", description)
 
         previous_import["dst_experiment_id"] = experiment_id
         previous_import["src_experiement_id"] = exp_dct["experiment"]["experiment_id"]
@@ -98,8 +101,10 @@ class ExperimentImporter():
         print(f"Imported {len(run_ids)} runs into experiment '{exp_name}' from {input_dir}")
         if len(failed_run_ids) > 0:
             print(f"Warning: {len(failed_run_ids)} failed runs were not imported - see '{path}'")
-        utils.nested_tags(self.mlflow_client, run_ids_map)
-        self.save_import_status(input_dir, previous_import, run_ids_map)
+        # Adding the run_id_map to the previous import status.
+        merge_runs = { **previous_import["runs"], **run_ids_map }
+        utils.nested_tags(self.mlflow_client, merge_runs)
+        self.save_import_status(input_dir, previous_import, merge_runs)
         return run_info_map
 
 
