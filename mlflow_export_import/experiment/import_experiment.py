@@ -40,6 +40,20 @@ class ExperimentImporter():
         self.import_source_tags = import_source_tags
 
 
+    def read_previous_import(self, input_dir):
+        path = os.path.join(input_dir, "import-experiment.json")
+        if os.path.exists(path):
+            return io_utils.read_file(path)
+        return {"runs": {}}
+
+    def save_import_status(self, input_dir, previous_import, run_ids_map):
+        # Adding the run_id_map to the previous import status.
+        previous_import["runs"] = { **previous_import["runs"], **run_ids_map }
+
+        path = os.path.join(input_dir, "import-experiment.json")
+        io_utils.write_file(path, previous_import)
+
+
     def import_experiment(self, exp_name, input_dir, dst_notebook_dir=None):
         """
         :param: exp_name: Destination experiment name.
@@ -51,6 +65,9 @@ class ExperimentImporter():
         exp_dct = io_utils.read_file(path)
         info = io_utils.get_info(exp_dct)
         exp_dct = io_utils.get_mlflow(exp_dct)
+
+        previous_import = self.read_previous_import(input_dir)
+
 
         tags = exp_dct["experiment"]["tags"] 
         if self.import_source_tags:
@@ -64,11 +81,12 @@ class ExperimentImporter():
 
         run_ids = exp_dct["runs"]
         failed_run_ids = info["failed_runs"]
+        to_do_runs = set(run_ids) - set(previous_import["runs"].keys())
 
-        print(f"Importing {len(run_ids)} runs into experiment '{exp_name}' from {input_dir}")
+        print(f"Importing {len(run_ids)} runs, skipping {len(run_ids) - len(to_do_runs)} runs into experiment '{exp_name}' from {input_dir}")
         run_ids_map = {}
         run_info_map = {}
-        for src_run_id in run_ids:
+        for src_run_id in to_do_runs:
             dst_run, src_parent_run_id = self.run_importer.import_run(exp_name, os.path.join(input_dir, src_run_id), dst_notebook_dir)
             dst_run_id = dst_run.info.run_id
             run_ids_map[src_run_id] = { "dst_run_id": dst_run_id, "src_parent_run_id": src_parent_run_id }
@@ -77,6 +95,7 @@ class ExperimentImporter():
         if len(failed_run_ids) > 0:
             print(f"Warning: {len(failed_run_ids)} failed runs were not imported - see '{path}'")
         utils.nested_tags(self.mlflow_client, run_ids_map)
+        self.save_import_status(input_dir, previous_import, run_ids_map)
         return run_info_map
 
 
