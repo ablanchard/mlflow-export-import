@@ -77,7 +77,11 @@ class ExperimentImporter():
             set_source_tags_for_field(exp, tags)
             fmt_timestamps("creation_time", exp, tags)
             fmt_timestamps("last_update_time", exp, tags)
-        mlflow_utils.set_experiment(self.mlflow_client, self.dbx_client, exp_name, tags)
+        experiment_id = mlflow_utils.set_experiment(self.mlflow_client, self.dbx_client, exp_name, tags)
+
+        previous_import["dst_experiment_id"] = experiment_id
+        previous_import["src_experiement_id"] = exp_dct["experiment"]["experiment_id"]
+        previous_import["experiment_name"] = exp_dct["experiment"]["name"]
 
         run_ids = exp_dct["runs"]
         failed_run_ids = info["failed_runs"]
