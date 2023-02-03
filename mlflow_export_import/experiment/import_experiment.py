@@ -51,6 +51,12 @@ class ExperimentImporter():
         path = os.path.join(input_dir, "import-experiment.json")
         io_utils.write_file(path, previous_import)
 
+    def replace_if_user_is_archived(self, exp_name):
+        archived_users = ["ahmed",  "chen", "fabien.warther@mirakl.com-backup-1", "lucas.maison", "rayan.maaloul", "glenn.nebout@mirakl.com-backup-1"]
+        for user in archived_users:
+            if exp_name.startswith(f"/Users/{user}"):
+                return exp_name.replace("/Users/", "/Archive/")
+        return exp_name
 
     def import_experiment(self, exp_name, input_dir, dst_notebook_dir=None):
         """
@@ -76,6 +82,7 @@ class ExperimentImporter():
             fmt_timestamps("creation_time", exp, tags)
             fmt_timestamps("last_update_time", exp, tags)
         
+        exp_name = self.replace_if_user_is_archived(exp_name)
         experiment_id = mlflow_utils.set_experiment(self.mlflow_client, self.dbx_client, exp_name, tags)
         # Copy content of tag and add experiment_id
         new_id_message = f"Migrated from id: {exp_dct['experiment']['experiment_id']} \n"
