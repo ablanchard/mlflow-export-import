@@ -3,7 +3,7 @@ import json
 import requests
 import click
 from mlflow_export_import.common import mlflow_utils
-from mlflow_export_import.common import MlflowExportImportException
+from mlflow_export_import.common import MlflowExportImportException, ResourceAlreadyExistsException
 from mlflow_export_import.common import USER_AGENT
 
 class HttpClient():
@@ -59,6 +59,9 @@ class HttpClient():
         return f"{self.api_uri}/{resource}"
 
     def _check_response(self, rsp, uri, params=None):
+        if rsp.status_code == 400 and "RESOURCE_ALREADY_EXISTS" in rsp.text:
+            raise ResourceAlreadyExistsException()
+
         if rsp.status_code < 200 or rsp.status_code > 299:
             raise MlflowExportImportException(f"HTTP status code: {rsp.status_code}. Reason: {rsp.reason}. URI: {uri}. Params: {params}.")
 

@@ -1,7 +1,7 @@
 import os
 import mlflow
 from mlflow.exceptions import RestException
-from mlflow_export_import.common import MlflowExportImportException
+from mlflow_export_import.common import MlflowExportImportException, ResourceAlreadyExistsException
 
 
 def dump_mlflow_info():
@@ -58,8 +58,7 @@ def set_experiment(mlflow_client, dbx_client, exp_name, tags=None):
             create_workspace_dir(dbx_client, os.path.dirname(exp_name))
     except Exception as e:
         print(f"ERROR while creating workspace directory: {exp_name}")
-        raise e
-        
+
     try:
         if not tags: tags = {}
         return mlflow_client.create_experiment(exp_name, tags=tags)
@@ -102,4 +101,8 @@ def create_workspace_dir(dbx_client, workspace_dir):
     Create Databricks workspace directory.
     """
     print(f"Creating Databricks workspace directory '{workspace_dir}'")
-    dbx_client.post("workspace/mkdirs", { "path": workspace_dir })
+    try:
+        dbx_client.post("workspace/mkdirs", { "path": workspace_dir })
+    except ResourceAlreadyExistsException as e:
+        print("WARNING: workspace directory already exists")
+
