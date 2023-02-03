@@ -43,7 +43,6 @@ class HttpClient():
         uri = self._mk_uri(resource)
         data = json.dumps(data)
         rsp = requests.post(uri, headers=self._mk_headers(), data=data)
-        print(rsp.text)
         self._check_response(rsp,uri)
         return rsp
 
