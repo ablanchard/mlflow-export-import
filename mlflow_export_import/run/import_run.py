@@ -76,7 +76,12 @@ class RunImporter():
         exp_id = mlflow_utils.set_experiment(self.mlflow_client, self.dbx_client, dst_exp_name)
         exp = self.mlflow_client.get_experiment(exp_id)
         src_run_path = os.path.join(input_dir,"run.json")
-        src_run_dct = io_utils.read_file_mlflow(src_run_path)
+        src_dct = io_utils.read_file(src_run_path)
+        if "mlflow" in src_dct:
+            src_run_dct = io_utils.read_file_mlflow(src_run_path)
+        else:
+            # we are in a legacy case
+            src_run_dct = { "info": src_dct["info"], "params": src_dct["params"], "metrics": src_dct["metrics"], "tags": src_dct["tags"]}
 
         run = self.mlflow_client.create_run(exp.experiment_id)
         run_id = run.info.run_id
