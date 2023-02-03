@@ -53,8 +53,13 @@ def set_experiment(mlflow_client, dbx_client, exp_name, tags=None):
     :return: Experiment ID
     """
     from mlflow_export_import.common import utils
-    if utils.importing_into_databricks():
-        create_workspace_dir(dbx_client, os.path.dirname(exp_name))
+    try:
+        if utils.importing_into_databricks():
+            create_workspace_dir(dbx_client, os.path.dirname(exp_name))
+    except Exception as e:
+        print(f"ERROR while creating workspace directory: {exp_name}")
+        raise e
+        
     try:
         if not tags: tags = {}
         return mlflow_client.create_experiment(exp_name, tags=tags)
