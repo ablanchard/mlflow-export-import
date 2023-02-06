@@ -57,7 +57,7 @@ def _import_experiments(client, input_dir, use_src_user_id):
 
 
 def _import_models(client, input_dir, run_info_map, delete_model, import_source_tags, verbose, use_threads):
-    max_workers = os.cpu_count() or 4 if use_threads else 1
+    max_workers = int(os.get("CPU_COUNT", os.cpu_count() or 4)) if use_threads else 1
     start_time = time.time()
 
     models_dir = os.path.join(input_dir, "models")
