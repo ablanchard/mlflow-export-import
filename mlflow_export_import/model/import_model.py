@@ -56,13 +56,8 @@ class BaseModelImporter():
         if self.import_source_tags:
             _set_source_tags_for_field(src_vr, tags)
 
-        version = self.mlflow_client.create_model_version(model_name, dst_source, dst_run_id, \
-            description=src_vr["description"], tags=tags, **kwargs)
-        print(f"Created new model version '{version.version}'")
-        model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, version, sleep_time=sleep_time)
-        if src_vr["current_stage"] != "None":
-            self.mlflow_client.transition_model_version_stage(model_name, version.version, src_vr["current_stage"])
-
+        return self.mlflow_client.create_model_version(model_name, dst_source, dst_run_id, \
+            description=src_vr["description"], tags=tags, await_creation_for=None)
 
     def _import_model(self, model_name, input_dir, delete_model=False):
         """
@@ -178,29 +173,40 @@ class AllModelImporter(BaseModelImporter):
         :param sleep_time: Seconds to wait for model version crreation.
         :return: Model import manifest.
         """
-        model_dct = self._import_model(model_name, input_dir, delete_model)
-        print(f"Importing {len(model_dct['latest_versions'])} latest versions:")
-        # order latest versions by version
-        versions = sorted(model_dct["latest_versions"], key=lambda x: int(x["version"]))
+        try:
+            model_dct = self._import_model(model_name, input_dir, delete_model)
+            print(f"Importing {len(model_dct['latest_versions'])} latest versions:")
+            # order latest versions by version
+            versions = sorted(model_dct["latest_versions"], key=lambda x: int(x["version"]))
+            for vr in versions:
+                print(f"Doing {vr['run_id']} version {vr['version']}")
+                src_run_id = vr["run_id"]
+                dst_run_id = self.run_info_map[src_run_id]["dst_run_id"]
+                mlflow.set_experiment(vr["_experiment_name"])
+                created_version = self.import_version(model_name, vr, dst_run_id, sleep_time)
+                if created_version.version != vr["version"]:
+                    print(f"Version mismatch: Source version {vr['version']} was created as version: {created_version['version']}")
+                    raise Exception(f"Version mismatch: Source version {vr['version']} was created as version: {created_version['version']}")
+            # transition version to stage
+            for vr in versions:
+                if vr["current_stage"] != "None":
+                    print(f"Transitioning version {vr['version']} to stage {vr['current_stage']}")
+                    self.mlflow_client.transition_model_version_stage(model_name, vr['version'], vr["current_stage"])
 
-        print(f"versions: {versions}")
-        for vr in versions:
-            print(f"Doing {vr['run_id']} version {vr['version']}")
-            src_run_id = vr["run_id"]
-            dst_run_id = self.run_info_map[src_run_id]["dst_run_id"]
-            print("Setting experiment to: ", vr["_experiment_name"])
-            mlflow.set_experiment(vr["_experiment_name"])
-            self.import_version(model_name, vr, dst_run_id, sleep_time)
-        if verbose:
-            model_utils.dump_model_versions(self.mlflow_client, model_name)
+            if verbose:
+                model_utils.dump_model_versions(self.mlflow_client, model_name)
+        except Exception as e:
+            print(f"Error importing model {model_name}: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
 
     def import_version(self, model_name, src_vr, dst_run_id, sleep_time):
         src_run_id = src_vr["run_id"]
         model_path = _extract_model_path(src_vr["source"], src_run_id)
-        print(f"model_path: {model_path}")
         dst_artifact_uri = self.run_info_map[src_run_id]["artifact_uri"]
         dst_source = f"{dst_artifact_uri}/{model_path}"
-        self._import_version(model_name, src_vr, dst_run_id, dst_source, sleep_time)
+        return self._import_version(model_name, src_vr, dst_run_id, dst_source, sleep_time)
 
 
 def _extract_model_path(source, run_id):
