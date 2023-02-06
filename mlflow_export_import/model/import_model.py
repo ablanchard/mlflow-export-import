@@ -180,7 +180,7 @@ class AllModelImporter(BaseModelImporter):
         model_dct = self._import_model(model_name, input_dir, delete_model)
         print(f"Importing {len(model_dct['latest_versions'])} latest versions:")
         # order latest versions by version
-        model_dct["latest_versions"] = sorted(model_dct["latest_versions"], key=lambda x: x["version"])
+        model_dct["latest_versions"] = sorted(model_dct["latest_versions"], key=lambda x: int(x["version"]))
         for vr in model_dct["latest_versions"]:
             print(f"Doing {vr['run_id']} version {vr['version']}")
             src_run_id = vr["run_id"]
