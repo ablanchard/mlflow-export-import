@@ -27,12 +27,13 @@ def delete_model(client, model_name, sleep_time=5):
 def wait_until_version_is_ready(client, model_name, model_version, sleep_time=1, iterations=100):
     """ Due to blob eventual consistency, wait until a newly created version is in READY state. """
     start = time.time()
-    status = ModelVersionStatus.PENDING_REGISTRATION
+    vr = client.get_model_version(model_name, model_version)
+    status = ModelVersionStatus.from_string(vr.status)
     while status != ModelVersionStatus.READY and time.time() - start <= iterations:
-        vr = client.get_model_version(model_name, model_version.version)
+        time.sleep(sleep_time)
+        vr = client.get_model_version(model_name, model_version)
         status = ModelVersionStatus.from_string(vr.status)
         print(f"Version: id={vr.version} status={vr.status} state={vr.current_stage}")
-        time.sleep(sleep_time)
     end = time.time()
     print(f"Waited {round(end-start,2)} seconds")
 
