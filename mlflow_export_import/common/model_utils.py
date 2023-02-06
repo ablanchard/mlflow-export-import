@@ -14,7 +14,13 @@ def delete_model(client, model_name, sleep_time=5):
             client.transition_model_version_stage(model_name, v.version, "Archived")
     for v in versions:
         client.delete_model_version(model_name, v.version)
-    client.delete_registered_model(model_name)
+    try:
+        client.delete_registered_model(model_name)
+    except RestException as ex:
+        if ex.error_code == "RESOURCE_DOES_NOT_EXIST":
+            print(f"Model '{model_name}' does not exist")
+        else:
+            raise ex
     print(f"Deleted model '{model_name}'")
 
 

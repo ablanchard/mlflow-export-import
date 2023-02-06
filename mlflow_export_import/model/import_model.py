@@ -191,6 +191,7 @@ class AllModelImporter(BaseModelImporter):
             for vr in versions:
                 if vr["current_stage"] != "None":
                     print(f"Transitioning version {vr['version']} to stage {vr['current_stage']}")
+                    model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, vr['version'], sleep_time=1, iterations=100)
                     self.mlflow_client.transition_model_version_stage(model_name, vr['version'], vr["current_stage"])
 
             if verbose:
