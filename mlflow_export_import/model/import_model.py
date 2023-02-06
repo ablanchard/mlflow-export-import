@@ -49,6 +49,7 @@ class BaseModelImporter():
         """
         dst_source = dst_source.replace("file://","") # OSS MLflow
         if not dst_source.startswith("dbfs:") and not os.path.exists(dst_source):
+            print(f"'source' argument for MLflowClient.create_model_version does not exist: {dst_source}")
             raise MlflowExportImportException(f"'source' argument for MLflowClient.create_model_version does not exist: {dst_source}")
         kwargs = {"await_creation_for": self.await_creation_for } if self.await_creation_for else {}
         tags = src_vr["tags"]
@@ -57,7 +58,7 @@ class BaseModelImporter():
 
         version = self.mlflow_client.create_model_version(model_name, dst_source, dst_run_id, \
             description=src_vr["description"], tags=tags, **kwargs)
-
+        print(f"Created new model version '{version.version}'")
         model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, version, sleep_time=sleep_time)
         if src_vr["current_stage"] != "None":
             self.mlflow_client.transition_model_version_stage(model_name, version.version, src_vr["current_stage"])
@@ -180,11 +181,14 @@ class AllModelImporter(BaseModelImporter):
         model_dct = self._import_model(model_name, input_dir, delete_model)
         print(f"Importing {len(model_dct['latest_versions'])} latest versions:")
         # order latest versions by version
-        model_dct["latest_versions"] = sorted(model_dct["latest_versions"], key=lambda x: int(x["version"]))
-        for vr in model_dct["latest_versions"]:
+        versions = sorted(model_dct["latest_versions"], key=lambda x: int(x["version"]))
+
+        print(f"versions: {versions}")
+        for vr in versions:
             print(f"Doing {vr['run_id']} version {vr['version']}")
             src_run_id = vr["run_id"]
             dst_run_id = self.run_info_map[src_run_id]["dst_run_id"]
+            print("Setting experiment to: ", vr["_experiment_name"])
             mlflow.set_experiment(vr["_experiment_name"])
             self.import_version(model_name, vr, dst_run_id, sleep_time)
         if verbose:
@@ -193,6 +197,7 @@ class AllModelImporter(BaseModelImporter):
     def import_version(self, model_name, src_vr, dst_run_id, sleep_time):
         src_run_id = src_vr["run_id"]
         model_path = _extract_model_path(src_vr["source"], src_run_id)
+        print(f"model_path: {model_path}")
         dst_artifact_uri = self.run_info_map[src_run_id]["artifact_uri"]
         dst_source = f"{dst_artifact_uri}/{model_path}"
         self._import_version(model_name, src_vr, dst_run_id, dst_source, sleep_time)

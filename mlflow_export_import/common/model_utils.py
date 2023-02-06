@@ -7,12 +7,12 @@ from mlflow_export_import.common.timestamp_utils import fmt_ts_millis
 def delete_model(client, model_name, sleep_time=5):
     """ Delete a model and all its versions. """
     try:
-        versions = client.get_latest_versions(model_name)
+        versions = client.search_model_versions(filter_string=f"name='{model_name}'")
         print(f"Deleting model '{model_name}' and {len(versions)} versions")
         for v in versions:
             print(f"  version={v.version} status={v.status} stage={v.current_stage} run_id={v.run_id}")
-            client.transition_model_version_stage (model_name, v.version, "Archived")
-            time.sleep(sleep_time) # Wait until stage transition takes hold
+            client.transition_model_version_stage(model_name, v.version, "Archived")
+        for v in versions:
             client.delete_model_version(model_name, v.version)
         client.delete_registered_model(model_name)
     except RestException:
