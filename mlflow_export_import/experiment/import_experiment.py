@@ -103,6 +103,8 @@ class ExperimentImporter():
         run_info_map = {}
         for src_run_id in to_do_runs:
             dst_run, src_parent_run_id = self.run_importer.import_run(exp_name, os.path.join(input_dir, src_run_id), dst_notebook_dir)
+            if not dst_run:
+                continue
             dst_run_id = dst_run.info.run_id
             run_ids_map[src_run_id] = { "dst_run_id": dst_run_id, "src_parent_run_id": src_parent_run_id, "artifact_uri": dst_run.info.artifact_uri }
             run_info_map[src_run_id] = dst_run.info
