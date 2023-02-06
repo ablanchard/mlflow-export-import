@@ -68,7 +68,10 @@ class RunImporter():
         """
         print(f"Importing run from '{input_dir}'")
         res = self._import_run(exp_name, input_dir, dst_notebook_dir)
-        print(f"Imported run into '{exp_name}/{res[0].info.run_id}'")
+        if res[0]:
+            print(f"Imported run into '{exp_name}/{res[0].info.run_id}'")
+        else:
+            print(f"ERROR failed run: {input_dir}")
         return res
 
 
