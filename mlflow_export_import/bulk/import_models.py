@@ -79,7 +79,11 @@ def read_imported_experiments(input_dir):
 
     results = {}
     for exp in exps:
-        imported = io_utils.read_file(os.path.join(os.path.join(input_dir,EXPERIMENT_FOLDER, exp["id"],"import-experiment.json")))
+        try:
+            imported = io_utils.read_file(os.path.join(os.path.join(input_dir,EXPERIMENT_FOLDER, exp["id"],"import-experiment.json")))
+        except FileNotFoundError:
+            print(f"ERROR no import-experiment.json for experiment {exp['id']}")
+            continue
         results = { **results, **imported["runs"] }
     return results
 
