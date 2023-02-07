@@ -228,11 +228,17 @@ class AllModelImporter(BaseModelImporter):
             version_to_fix["_run_artifact_uri"] = version_to_copy["_run_artifact_uri"]
             print(f"Fixed {version_to_fix['version']} with {version_to_copy['version']} new run_id: {version_to_fix['run_id']}")
 
-
+    def remove_version(self, versions):
+        for version in versions:
+            if "/Trash/" in version["_experiment_name"]:
+                versions.remove(version)
+            if "sentiment_analysis/playground/debug_train_fr (1)" in version["_experiment_name"]:
+                versions.remove(version)
 
 
     def replace_if_user_is_archived(self, exp_name):
-        archived_users = ["ahmed",  "chen", "fabien.warther@mirakl.com-backup-1", "lucas.maison", "rayan.maaloul", "glenn.nebout@mirakl.com-backup-1"]
+        import json
+        archived_users = json.loads(os.environ["ARCHIVED_USERS"])
         for user in archived_users:
             if exp_name.startswith(f"/Users/{user}"):
                 return exp_name.replace("/Users/", "/Archive/")
@@ -256,6 +262,7 @@ class AllModelImporter(BaseModelImporter):
             model_dct = self._import_model(model_name, input_dir, len(previous_versions) == 0)
             # order latest versions by version
             all = model_dct["latest_versions"]
+            self.remove_version(all)
             all += self.fix_missing_version(all)
             self.fix_missing_run_version(all, model_name)
             todo = list(filter(lambda x: x["version"] not in previous_versions, all))

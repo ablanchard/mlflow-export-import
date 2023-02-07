@@ -52,7 +52,8 @@ class ExperimentImporter():
         io_utils.write_file(path, previous_import)
 
     def replace_if_user_is_archived(self, exp_name):
-        archived_users = ["ahmed",  "chen", "fabien.warther@mirakl.com-backup-1", "lucas.maison", "rayan.maaloul", "glenn.nebout@mirakl.com-backup-1"]
+        import json
+        archived_users = json.loads(os.environ["ARCHIVED_USERS"])
         for user in archived_users:
             if exp_name.startswith(f"/Users/{user}"):
                 return exp_name.replace("/Users/", "/Archive/")
