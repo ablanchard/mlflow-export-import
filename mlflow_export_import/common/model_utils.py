@@ -10,7 +10,7 @@ def delete_model(client, model_name, sleep_time=5):
     print(f"Deleting model '{model_name}' and {len(versions)} versions")
     for v in versions:
         print(f"  version={v.version} status={v.status} stage={v.current_stage} run_id={v.run_id}")
-        if v.current_stage != "Archived":
+        if v.current_stage not in ["Archived", "None"]:
             client.transition_model_version_stage(model_name, v.version, "Archived")
     for v in versions:
         client.delete_model_version(model_name, v.version)

@@ -6,7 +6,7 @@ import os
 import click
 
 import mlflow
-from mlflow.exceptions import RestException
+from mlflow.exceptions import RestException, MlflowException
 
 from mlflow_export_import.common.click_options import opt_input_dir, opt_model, \
   opt_experiment_name, opt_delete_model, opt_import_source_tags, opt_verbose
@@ -15,6 +15,7 @@ from mlflow_export_import.common import model_utils
 from mlflow_export_import.common.source_tags import set_source_tags_for_field, fmt_timestamps
 from mlflow_export_import.common import MlflowExportImportException
 from mlflow_export_import.run.import_run import RunImporter
+
 
 
 def _set_source_tags_for_field(dct, tags):
@@ -51,13 +52,19 @@ class BaseModelImporter():
         if not dst_source.startswith("dbfs:") and not os.path.exists(dst_source):
             print(f"'source' argument for MLflowClient.create_model_version does not exist: {dst_source}")
             raise MlflowExportImportException(f"'source' argument for MLflowClient.create_model_version does not exist: {dst_source}")
-        kwargs = {"await_creation_for": self.await_creation_for } if self.await_creation_for else {}
         tags = src_vr["tags"]
         if self.import_source_tags:
             _set_source_tags_for_field(src_vr, tags)
-
-        return self.mlflow_client.create_model_version(model_name, dst_source, dst_run_id, \
-            description=src_vr["description"], tags=tags, await_creation_for=None)
+        try:
+            version = self.mlflow_client.create_model_version(model_name, dst_source, dst_run_id, \
+                description=src_vr["description"], tags=tags, await_creation_for=0)
+        except MlflowException as e:
+            if "Max retries" in e.message:
+                print("Hitting max retiries, Waiting for model version creation to complete...")
+                model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, int(src_vr["version"]) - 1, sleep_time=1, iterations=300)
+                version = self.mlflow_client.create_model_version(model_name, dst_source, dst_run_id, \
+                    description=src_vr["description"], tags=tags, await_creation_for=0)
+        return version
 
     def _import_model(self, model_name, input_dir, delete_model=False):
         """
@@ -71,17 +78,19 @@ class BaseModelImporter():
         path = os.path.join(input_dir, "model.json")
         model_dct = io_utils.read_file_mlflow(path)["registered_model"]
 
-        print("Model to import:")
+        # print("Model to import:")
         print(f"  Name: {model_dct['name']}")
-        print(f"  Description: {model_dct.get('description','')}")
-        print(f"  Tags: {model_dct.get('tags','')}")
-        print(f"  {len(model_dct['latest_versions'])} latest versions")
-        print(f"  path: {path}")
+        # print(f"  Description: {model_dct.get('description','')}")
+        # print(f"  Tags: {model_dct.get('tags','')}")
+        # print(f"  {len(model_dct['latest_versions'])} latest versions")
+        # print(f"  path: {path}")
 
         if not model_name:
             model_name = model_dct["name"]
         if delete_model:
             model_utils.delete_model(self.mlflow_client, model_name)
+        else:
+            print("NOT deleting existing model")
 
         try:
             tags = { e["key"]:e["value"] for e in model_dct.get("tags", {}) }
@@ -93,6 +102,10 @@ class BaseModelImporter():
             if not "RESOURCE_ALREADY_EXISTS: Registered Model" in str(e):
                 raise e
             print(f"Registered model '{model_name}' already exists")
+            # Updating tags
+            for key, value in tags.items():
+                print("Updating tag", key, value)
+                self.mlflow_client.set_registered_model_tag(model_name, key, value)
         return model_dct
 
 
@@ -163,6 +176,67 @@ class AllModelImporter(BaseModelImporter):
         super().__init__(mlflow_client, run_importer, import_source_tags=import_source_tags, await_creation_for=await_creation_for)
         self.run_info_map = run_info_map
 
+    
+    def fix_missing_version(self, versions):
+        import copy
+        versions_int = [int(v["version"]) for v in versions]
+        # find which version is missing in range
+        missing_versions = [v for v in range(1, max(versions_int)+1) if v not in versions_int]
+        results = []
+        if len(missing_versions) == 0:
+            print("No missing version")
+        for missing in missing_versions:
+            if missing == 1:
+                # take number first than exist
+                ordered_versions = sorted(versions, key=lambda x: int(x["version"]))
+                added_version = copy.deepcopy(ordered_versions[0])
+                added_version["description"] = f"Copy of version {added_version['version']} fixed to not mess with the version ordering"
+                added_version["version"] = str(missing)
+                added_version["current_stage"] = "Archived"
+                results.append(added_version)
+            else:
+                # take number before
+                previous_version = [v for v in versions if int(v["version"]) == missing-1]
+                if len(previous_version) == 0:
+                    previous_version = [v for v in results if int(v["version"]) == missing-1]
+                added_version = copy.deepcopy(previous_version[0])
+                added_version["description"] = f"Copy of version {added_version['version']} fixed to not mess with the version ordering"
+                added_version["version"] = str(missing)
+                added_version["current_stage"] = "Archived"
+                results.append(added_version)
+        print(f"Added missing versions: {results}")
+        return results
+
+    def fix_missing_run_version(self, versions, model_name):
+        MISSING_RUN = {
+            "attribute_mapper": ["1a8939230df04af8af681ef2b151112c", "13eda72e6fbb4a09a31f3762c7154854"],
+            "sentiment_analysis-tmp:": ["108f26aa12ff4bb5b4166296fea9adce"]
+        }
+        if model_name not in MISSING_RUN:
+            print("nothing to fix")
+            return None
+        missing_run_ids = MISSING_RUN[model_name]
+        for id in missing_run_ids:
+            # find version with id
+            version_to_fix = [v for v in versions if v["run_id"] == id][0]
+            version_to_copy = [v for v in versions if int(v["version"]) == int(version_to_fix["version"])-1][0]
+            version_to_fix["description"] = f"Copy of version {version_to_copy['version']} fixed to not mess with the version ordering"
+            version_to_fix["current_stage"] = "Archived"
+            version_to_fix["run_id"] = version_to_copy["run_id"]
+            version_to_fix["source"] = version_to_copy["source"]
+            version_to_fix["user_id"] = version_to_copy["user_id"]
+            version_to_fix["_run_artifact_uri"] = version_to_copy["_run_artifact_uri"]
+            print(f"Fixed {version_to_fix['version']} with {version_to_copy['version']} new run_id: {version_to_fix['run_id']}")
+
+
+
+
+    def replace_if_user_is_archived(self, exp_name):
+        archived_users = ["ahmed",  "chen", "fabien.warther@mirakl.com-backup-1", "lucas.maison", "rayan.maaloul", "glenn.nebout@mirakl.com-backup-1"]
+        for user in archived_users:
+            if exp_name.startswith(f"/Users/{user}"):
+                return exp_name.replace("/Users/", "/Archive/")
+        return exp_name
 
     def import_model(self, model_name, input_dir, delete_model=False, verbose=False, sleep_time=3):
         """
@@ -174,28 +248,46 @@ class AllModelImporter(BaseModelImporter):
         :return: Model import manifest.
         """
         try:
-            model_dct = self._import_model(model_name, input_dir, delete_model)
-            print(f"Importing {len(model_dct['latest_versions'])} latest versions:")
+
+            if os.path.exists(os.path.join(input_dir, "import-model.json")):
+                previous_versions = io_utils.read_file(os.path.join(input_dir, "import-model.json"))
+            else:
+                previous_versions = []
+            model_dct = self._import_model(model_name, input_dir, len(previous_versions) == 0)
             # order latest versions by version
-            versions = sorted(model_dct["latest_versions"], key=lambda x: int(x["version"]))
+            all = model_dct["latest_versions"]
+            all += self.fix_missing_version(all)
+            self.fix_missing_run_version(all, model_name)
+            todo = list(filter(lambda x: x["version"] not in previous_versions, all))
+            versions = sorted(todo, key=lambda x: int(x["version"]))
+
+            print(f"Importing {len(all)} latest versions, skipping {len(previous_versions)} previous versions")
+
             for vr in versions:
                 print(f"Doing {vr['run_id']} version {vr['version']}")
                 src_run_id = vr["run_id"]
                 dst_run_id = self.run_info_map[src_run_id]["dst_run_id"]
-                mlflow.set_experiment(vr["_experiment_name"])
+                mlflow.set_experiment(self.replace_if_user_is_archived(vr["_experiment_name"]))
                 created_version = self.import_version(model_name, vr, dst_run_id, sleep_time)
                 if created_version.version != vr["version"]:
-                    print(f"Version mismatch: Source version {vr['version']} was created as version: {created_version['version']}")
-                    raise Exception(f"Version mismatch: Source version {vr['version']} was created as version: {created_version['version']}")
+                    print(f"Version mismatch: Source version {vr['version']} was created as version: {created_version.version}")
+                    raise Exception(f"Version mismatch: Source version {vr['version']} was created as version: {created_version.version}")
             # transition version to stage
             for vr in versions:
                 if vr["current_stage"] != "None":
                     print(f"Transitioning version {vr['version']} to stage {vr['current_stage']}")
-                    model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, vr['version'], sleep_time=1, iterations=100)
+                    model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, vr['version'], sleep_time=1, iterations=300)
                     self.mlflow_client.transition_model_version_stage(model_name, vr['version'], vr["current_stage"])
 
             if verbose:
                 model_utils.dump_model_versions(self.mlflow_client, model_name)
+
+            # create list with version from all
+            to_write = [x["version"] for x in all]
+            io_utils.write_file(os.path.join(input_dir, "import-model.json"), to_write)
+            print(f"Success done importing model {model_name}")
+
+            
         except Exception as e:
             print(f"Error importing model {model_name}: {e}")
             import traceback
