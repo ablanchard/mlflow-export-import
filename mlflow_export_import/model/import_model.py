@@ -172,9 +172,10 @@ class ModelImporter(BaseModelImporter):
 class AllModelImporter(BaseModelImporter):
     """ High-level 'bulk' model importer.  """
 
-    def __init__(self, mlflow_client, run_info_map, run_importer=None, import_source_tags=False, await_creation_for=None):
+    def __init__(self, mlflow_client, run_info_map, run_importer=None, import_source_tags=False, await_creation_for=None, conf={}):
         super().__init__(mlflow_client, run_importer, import_source_tags=import_source_tags, await_creation_for=await_creation_for)
         self.run_info_map = run_info_map
+        self.conf = conf
 
     
     def fix_missing_version(self, versions):
@@ -208,14 +209,14 @@ class AllModelImporter(BaseModelImporter):
         return results
 
     def fix_missing_run_version(self, versions, model_name):
-        MISSING_RUN = {
-            "attribute_mapper": ["1a8939230df04af8af681ef2b151112c", "13eda72e6fbb4a09a31f3762c7154854"],
-            "sentiment_analysis-tmp:": ["108f26aa12ff4bb5b4166296fea9adce"]
-        }
-        if model_name not in MISSING_RUN:
+        if "missing_runs" not in self.conf:
+            return
+        
+        missing_runs = self.conf["missing_runs"]
+        if model_name not in missing_runs:
             print("nothing to fix")
             return None
-        missing_run_ids = MISSING_RUN[model_name]
+        missing_run_ids = missing_runs[model_name]
         for id in missing_run_ids:
             # find version with id
             version_to_fix = [v for v in versions if v["run_id"] == id][0]
@@ -229,16 +230,18 @@ class AllModelImporter(BaseModelImporter):
             print(f"Fixed {version_to_fix['version']} with {version_to_copy['version']} new run_id: {version_to_fix['run_id']}")
 
     def remove_version(self, versions):
+        if "missing_experiments" not in self.conf:
+            return
+        missing_experiments = self.conf["missing_experiments"]
         for version in versions:
-            if "/Trash/" in version["_experiment_name"]:
-                versions.remove(version)
-            if "sentiment_analysis/playground/debug_train_fr (1)" in version["_experiment_name"]:
+            if version["_experiment_name"] in missing_experiments:
                 versions.remove(version)
 
 
     def replace_if_user_is_archived(self, exp_name):
-        import json
-        archived_users = json.loads(os.environ["ARCHIVED_USERS"])
+        if "archived_users" not in self.conf:
+            return exp_name
+        archived_users = self.conf["archived_users"]
         for user in archived_users:
             if exp_name.startswith(f"/Users/{user}"):
                 return exp_name.replace("/Users/", "/Archive/")

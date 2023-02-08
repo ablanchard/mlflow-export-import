@@ -61,9 +61,13 @@ def _import_models(client, input_dir, run_info_map, delete_model, import_source_
     start_time = time.time()
 
     models_dir = os.path.join(input_dir, "models")
-    models = io_utils.read_file_mlflow(os.path.join(os.path.join(models_dir,"models.json")))
+    models = io_utils.read_file_mlflow(os.path.join(models_dir,"models.json"))
     models = models["models"]
-    importer = AllModelImporter(client, run_info_map=run_info_map, import_source_tags=import_source_tags)
+    if os.path.exists(os.path.join(input_dir,"import-conf.json")):
+        conf = io_utils.read_file(os.path.join(input_dir,"import-conf.json"))
+    else:
+        conf = {}
+    importer = AllModelImporter(client, run_info_map=run_info_map, import_source_tags=import_source_tags, conf=conf)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for model in models:

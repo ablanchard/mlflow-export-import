@@ -27,7 +27,13 @@ def import_experiments(client, input_dir, use_src_user_id=False, use_threads=Fal
     for exp in exps:
         print("  ",exp)
 
-    importer = ExperimentImporter(client, use_src_user_id=use_src_user_id)
+
+    if os.path.exists(os.path.join(input_dir,"import-conf.json")):
+        conf = io_utils.read_file(os.path.join(input_dir, "..","import-conf.json"))
+    else:
+        conf = {}
+
+    importer = ExperimentImporter(client, use_src_user_id=use_src_user_id, conf=conf)
     max_workers = os.cpu_count() or 4 if use_threads else 1
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for exp in exps:

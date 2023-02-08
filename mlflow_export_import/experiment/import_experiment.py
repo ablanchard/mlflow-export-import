@@ -22,7 +22,7 @@ def _peek_at_experiments(exp_dir):
 
 class ExperimentImporter():
 
-    def __init__(self, mlflow_client, import_source_tags=False, mlmodel_fix=True, use_src_user_id=False):
+    def __init__(self, mlflow_client, import_source_tags=False, mlmodel_fix=True, use_src_user_id=False, conf={}):
         """
         :param mlflow_client: MLflow client.
         :param import_source_tags: Import source information for MLFlow objects and create tags in destination object.
@@ -38,6 +38,7 @@ class ExperimentImporter():
         print("MLflowClient:",self.mlflow_client)
         self.dbx_client = DatabricksHttpClient()
         self.import_source_tags = import_source_tags
+        self.conf = conf
 
 
     def read_previous_import(self, input_dir):
@@ -52,8 +53,9 @@ class ExperimentImporter():
         io_utils.write_file(path, previous_import)
 
     def replace_if_user_is_archived(self, exp_name):
-        import json
-        archived_users = json.loads(os.environ["ARCHIVED_USERS"])
+        if "archived_users" not in self.conf:
+            return exp_name
+        archived_users = self.conf["archived_users"]
         for user in archived_users:
             if exp_name.startswith(f"/Users/{user}"):
                 return exp_name.replace("/Users/", "/Archive/")
