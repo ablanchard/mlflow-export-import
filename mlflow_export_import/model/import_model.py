@@ -282,12 +282,17 @@ class AllModelImporter(BaseModelImporter):
                 if created_version.version != vr["version"]:
                     print(f"Version mismatch: Source version {vr['version']} was created as version: {created_version.version}")
                     raise Exception(f"Version mismatch: Source version {vr['version']} was created as version: {created_version.version}")
+            
             # transition version to stage
-            for vr in versions:
+            # We need to do it also for previous version because stage could have changed between 2 exports
+            to_transition = sorted(all, key=lambda x: int(x["version"]))
+            for vr in to_transition:
                 if vr["current_stage"] != "None":
                     print(f"Transitioning version {vr['version']} to stage {vr['current_stage']}")
                     model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, vr['version'], sleep_time=1, iterations=300)
                     self.mlflow_client.transition_model_version_stage(model_name, vr['version'], vr["current_stage"])
+            
+            
 
             if verbose:
                 model_utils.dump_model_versions(self.mlflow_client, model_name)
