@@ -290,7 +290,11 @@ class AllModelImporter(BaseModelImporter):
                 if vr["current_stage"] != "None":
                     print(f"Transitioning version {vr['version']} to stage {vr['current_stage']}")
                     model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, vr['version'], sleep_time=1, iterations=300)
-                    self.mlflow_client.transition_model_version_stage(model_name, vr['version'], vr["current_stage"])
+                    try:
+                        self.mlflow_client.transition_model_version_stage(model_name, vr['version'], vr["current_stage"])
+                    except Exception as e:
+                        if "Cannot update model version to its current stage" not in str(e):
+                            raise e
             
             
 
