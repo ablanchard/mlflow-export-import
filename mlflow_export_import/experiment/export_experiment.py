@@ -24,7 +24,7 @@ class ExperimentExporter():
         self.mlflow_client = mlflow_client
         self.skip_previous_ok_runs = True
         self.run_exporter = RunExporter(self.mlflow_client, notebook_formats=notebook_formats)
-        self.save_status_interval = 50000
+        self.save_status_interval = 20
 
     def _get_previous_ok_runs(self, output_dir):
         manifest_path = os.path.join(output_dir, "experiment.json")
