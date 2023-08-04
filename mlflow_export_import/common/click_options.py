@@ -104,6 +104,22 @@ def opt_use_threads(function):
         show_default=True)(function)
     return function
 
+def opt_nb_threads_all(function):
+    click.option("--nb-threads-all",
+        help="Number of threads for all experiments. Indivdual experiments will share the remaining cores",
+        type=int,
+        default=1,
+        show_default=True)(function)
+    return function
+
+def opt_save_interval(function):
+    click.option("--save-interval",
+        help="Every X runs to save the progress in the experiment.json",
+        type=int,
+        default=50000,
+        show_default=True)(function)
+    return function
+
 def opt_delete_model(function):
     function = click.option("--delete-model",
         help="If the model exists, first delete the model and all its versions.",

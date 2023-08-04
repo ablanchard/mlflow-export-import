@@ -37,7 +37,7 @@ def _export_experiment(client, exp_id_or_name, output_dir, exporter, export_resu
     return ok_runs, failed_runs
 
 
-def export_experiments(client, experiments, output_dir, notebook_formats=None, use_threads=False):
+def export_experiments(client, experiments, output_dir, notebook_formats=None, nb_threads_all=1, save_interval=50000):
     """
     :param: experiments: Can be either:
       - List of experiment names 
@@ -46,7 +46,7 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, u
       - String with comma-delimited experiment names or IDs such as 'sklearn_wine,sklearn_iris' or '1,2'
     """
     start_time = time.time()
-    max_workers = 1
+    max_workers = nb_threads_all
     print(f"[All] Using {max_workers} threads")
 
     export_all_runs = not isinstance(experiments, dict) 
@@ -69,7 +69,7 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, u
     failed_runs = 0
     export_results = []
     futures = []
-    exporter = ExperimentExporter(client, notebook_formats=utils.string_to_list(notebook_formats))
+    exporter = ExperimentExporter(client, notebook_formats=utils.string_to_list(notebook_formats), save_interval=save_interval)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for exp_id_or_name in experiments:
             run_ids = experiments_dct.get(exp_id_or_name, None)
@@ -107,8 +107,9 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, u
 @opt_experiments
 @opt_output_dir
 @opt_notebook_formats
-@opt_use_threads
-def main(experiments, output_dir, notebook_formats, use_threads):
+@opt_nb_threads_all
+@opt_save_interval
+def main(experiments, output_dir, notebook_formats, nb_threads_all, save_interval):
     print("Options:")
     for k,v in locals().items():
         print(f"  {k}: {v}")
@@ -117,7 +118,9 @@ def main(experiments, output_dir, notebook_formats, use_threads):
         experiments=experiments,
         output_dir=output_dir,
         notebook_formats=notebook_formats,
-        use_threads=use_threads)
+        nb_threads_all=nb_threads_all,
+        save_interval=save_interval
+        )
 
 
 if __name__ == "__main__":
