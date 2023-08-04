@@ -24,6 +24,7 @@ class ExperimentExporter():
         self.mlflow_client = mlflow_client
         self.skip_previous_ok_runs = True
         self.run_exporter = RunExporter(self.mlflow_client, notebook_formats=notebook_formats)
+        self.save_status_interval = 50000
 
     def _get_previous_ok_runs(self, output_dir):
         manifest_path = os.path.join(output_dir, "experiment.json")
@@ -35,30 +36,13 @@ class ExperimentExporter():
         if "mlflow" in manifest:
             return manifest["mlflow"]["runs"]
         raise Exception("Unknown manifest format")
+    
 
-    def export_experiment(self, exp_id_or_name, output_dir, run_ids=None):
-        """
-        :param exp_id_or_name: Experiment ID or name.
-        :param output_dir: Output directory.
-        :param run_ids: List of run IDs to export. If None export all run IDs.
-        :return: Number of successful and number of failed runs.
-        """
-        exp = mlflow_utils.get_experiment(self.mlflow_client, exp_id_or_name)
-        print(f"Exporting experiment '{exp.name}' (ID {exp.experiment_id}) to '{output_dir}'")
-        ok_run_ids = []
-        failed_run_ids = []
-        j = -1
-        previous_ok_runs = self._get_previous_ok_runs(output_dir)
-        if run_ids:
-            for j,run_id in enumerate(run_ids):
-                run = self.mlflow_client.get_run(run_id)
-                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs, f"[{datetime.now()} {exp.experiment_id}]")
-        else:
-            for j,run in enumerate(SearchRunsIterator(self.mlflow_client, exp.experiment_id)):
-                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs, f"[{datetime.now()} {exp.experiment_id}]")
-
+    def _save_status(self, output_dir, exp, ok_run_ids, failed_run_ids, total_run):
+        prefix = f"[{datetime.now()} {exp.experiment_id}]"
+        print(f"{prefix} Saving status after {total_run} runs")
         info_attr = {
-            "num_total_runs": (j+1),
+            "num_total_runs": (total_run+1),
             "num_ok_runs": len(ok_run_ids),
             "num_failed_runs": len(failed_run_ids),
             "failed_runs": failed_run_ids
@@ -69,23 +53,59 @@ class ExperimentExporter():
         mlflow_attr = { "experiment": exp_dct , "runs": ok_run_ids }
         io_utils.write_export_file(output_dir, "experiment.json", __file__, mlflow_attr, info_attr)
 
-        msg = f"for experiment '{exp.name}' (ID: {exp.experiment_id})"
+
+    def _log_result_statement(self, exp, ok_run_ids, failed_run_ids, total_run):
+        msg = f"for experiment '{exp.name}'"
+        prefix = f"[{datetime.now()} {exp.experiment_id}]"
         if len(failed_run_ids) == 0:
-            print(f"All {len(ok_run_ids)} runs succesfully exported {msg}")
+            print(f"{prefix} All {len(ok_run_ids)} runs succesfully exported {msg}")
         else:
-            print(f"{len(ok_run_ids)/j} runs succesfully exported {msg}")
-            print(f"{len(failed_run_ids)/j} runs failed {msg}")
+            print(f"{prefix} {len(ok_run_ids)/total_run} runs succesfully exported {msg}")
+            print(f"{prefix} {len(failed_run_ids)/total_run} runs failed {msg}")
+
+
+    def export_experiment(self, exp_id_or_name, output_dir, run_ids=None):
+        """
+        :param exp_id_or_name: Experiment ID or name.
+        :param output_dir: Output directory.
+        :param run_ids: List of run IDs to export. If None export all run IDs.
+        :return: Number of successful and number of failed runs.
+        """
+        exp = mlflow_utils.get_experiment(self.mlflow_client, exp_id_or_name)
+        print(f"Exporting experiment '{exp.name}' (ID {exp.experiment_id}) to '{output_dir}'")
+        failed_run_ids = []
+        j = -1
+        ok_run_ids = self._get_previous_ok_runs(output_dir)
+        if run_ids:
+            for j,run_id in enumerate(run_ids):
+                run = self.mlflow_client.get_run(run_id)
+                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, f"[{datetime.now()} {exp.experiment_id}]")
+                # Regularly save status so it's easy to restart
+                if j != 0 and j % self.save_status_interval == 0:
+                    self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, j)
+        else:
+            for j,run in enumerate(SearchRunsIterator(self.mlflow_client, exp.experiment_id)):
+                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, f"[{datetime.now()} {exp.experiment_id}]")
+                # Regularly save status so it's easy to restart
+                if j != 0 and j % self.save_status_interval == 0:
+                    self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, j)
+
+        # Finally save status
+        self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, j)
+
+        # Print result
+        self._log_result_statement(exp, ok_run_ids, failed_run_ids, j)
         return len(ok_run_ids), len(failed_run_ids) 
 
 
-    def _export_run(self, idx, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs, log_prefix):
+    def _export_run(self, idx, run, output_dir, ok_run_ids, failed_run_ids, log_prefix):
         run_dir = os.path.join(output_dir, run.info.run_id)
-        if self.skip_previous_ok_runs and run.info.run_id in previous_ok_runs:
+        if self.skip_previous_ok_runs and run.info.run_id in ok_run_ids:
             print(f"{log_prefix} Skipping run {idx+1}: {run.info.run_id}")
-            res = True
-        else:
-            print(f"{log_prefix} Exporting run {idx+1}: {run.info.run_id}")
-            res = self.run_exporter.export_run(run.info.run_id, run_dir)
+            return
+        
+        print(f"{log_prefix} Exporting run {idx+1}: {run.info.run_id}")
+        res = self.run_exporter.export_run(run.info.run_id, run_dir)
         if res:
             ok_run_ids.append(run.info.run_id)
         else:
