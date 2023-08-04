@@ -100,13 +100,13 @@ class ExperimentExporter():
         futures = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for j,run in enumerate(run_ids):
-                log_prefix = f"[{datetime.now()} {exp.experiment_id}]"
                 run_id = self.get_run_id(run)
                 if self.skip_previous_ok_runs and run_id in ok_run_ids:
-                    print(f"{log_prefix} Skipping run {j+1}: {run_id}")
+                    print(f"[{datetime.now()} {exp.experiment_id}] Skipping run {j+1}: {run_id}")
                 else:
-                    future = executor.submit(self._export_run, j, run_id, output_dir, log_prefix)
+                    future = executor.submit(self._export_run, j, run_id, output_dir, exp.experiment_id)
                     futures.append(future)
+                    print(f"[{datetime.now()} {exp.experiment_id}] future added for run {j+1}: {run_id}")
                 # Regularly save status so it's easy to restart
                 if len(futures) == self.save_status_interval:
                     self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j)
@@ -120,9 +120,9 @@ class ExperimentExporter():
         return len(ok_run_ids), len(failed_run_ids) 
 
 
-    def _export_run(self, idx, run_id, output_dir, log_prefix):
+    def _export_run(self, idx, run_id, output_dir, experiment_id):
         run_dir = os.path.join(output_dir, run_id)        
-        print(f"{log_prefix} Exporting run {idx+1}: {run_id}")
+        print(f"[{datetime.now()} {experiment_id}] Exporting run {idx+1}: {run_id}")
         res = self.run_exporter.export_run(run_id, run_dir)
         return (res, run_id)
         
