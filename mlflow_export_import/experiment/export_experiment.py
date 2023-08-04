@@ -63,6 +63,10 @@ class ExperimentExporter():
             print(f"{prefix} {len(ok_run_ids)/total_run} runs succesfully exported {msg}")
             print(f"{prefix} {len(failed_run_ids)/total_run} runs failed {msg}")
 
+    def get_run_id(self, unknow_object):
+        if type(unknow_object) == str:
+            return unknow_object
+        return unknow_object.info.run_id
 
     def export_experiment(self, exp_id_or_name, output_dir, run_ids=None):
         """
@@ -76,19 +80,14 @@ class ExperimentExporter():
         failed_run_ids = []
         j = -1
         ok_run_ids = self._get_previous_ok_runs(output_dir)
-        if run_ids:
-            for j,run_id in enumerate(run_ids):
-                run = self.mlflow_client.get_run(run_id)
-                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, f"[{datetime.now()} {exp.experiment_id}]")
-                # Regularly save status so it's easy to restart
-                if j != 0 and j % self.save_status_interval == 0:
-                    self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, j)
-        else:
-            for j,run in enumerate(SearchRunsIterator(self.mlflow_client, exp.experiment_id)):
-                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, f"[{datetime.now()} {exp.experiment_id}]")
-                # Regularly save status so it's easy to restart
-                if j != 0 and j % self.save_status_interval == 0:
-                    self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, j)
+        if not run_ids:
+            run_ids = SearchRunsIterator(self.mlflow_client, exp.experiment_id)
+
+        for j,run in enumerate(run_ids):
+            self._export_run(j, self.get_run_id(run), output_dir, ok_run_ids, failed_run_ids, f"[{datetime.now()} {exp.experiment_id}]")
+            # Regularly save status so it's easy to restart
+            if j != 0 and j % self.save_status_interval == 0:
+                self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, j)
 
         # Finally save status
         self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, j)
@@ -98,18 +97,18 @@ class ExperimentExporter():
         return len(ok_run_ids), len(failed_run_ids) 
 
 
-    def _export_run(self, idx, run, output_dir, ok_run_ids, failed_run_ids, log_prefix):
-        run_dir = os.path.join(output_dir, run.info.run_id)
-        if self.skip_previous_ok_runs and run.info.run_id in ok_run_ids:
-            print(f"{log_prefix} Skipping run {idx+1}: {run.info.run_id}")
+    def _export_run(self, idx, run_id, output_dir, ok_run_ids, failed_run_ids, log_prefix):
+        run_dir = os.path.join(output_dir, run_id)
+        if self.skip_previous_ok_runs and run_id in ok_run_ids:
+            print(f"{log_prefix} Skipping run {idx+1}: {run_id}")
             return
         
-        print(f"{log_prefix} Exporting run {idx+1}: {run.info.run_id}")
-        res = self.run_exporter.export_run(run.info.run_id, run_dir)
+        print(f"{log_prefix} Exporting run {idx+1}: {run_id}")
+        res = self.run_exporter.export_run(run_id, run_dir)
         if res:
-            ok_run_ids.append(run.info.run_id)
+            ok_run_ids.append(run_id)
         else:
-            failed_run_ids.append(run.info.run_id)
+            failed_run_ids.append(run_id)
 
 
 @click.command()
