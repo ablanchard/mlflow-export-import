@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABCMeta
 
-MAX_RESULTS = 500
+MAX_RESULTS = 1000
 
 class BaseIterator(metaclass=ABCMeta):
     """
@@ -79,9 +79,11 @@ class SearchRunsIterator(BaseIterator):
         self.query = query
 
     def _call_iter(self):
+        print("call_iter")
         return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results)
 
     def _call_next(self):
+        print("call_next")
         return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results, page_token=self.paged_list.token)
 
 
