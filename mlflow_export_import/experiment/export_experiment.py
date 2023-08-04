@@ -12,7 +12,7 @@ from mlflow_export_import.common.iterators import SearchRunsIterator
 from mlflow_export_import.common import io_utils
 from mlflow_export_import.run.export_run import RunExporter
 from mlflow_export_import.common import utils
-
+from datetime import datetime
 
 class ExperimentExporter():
 
@@ -52,10 +52,10 @@ class ExperimentExporter():
         if run_ids:
             for j,run_id in enumerate(run_ids):
                 run = self.mlflow_client.get_run(run_id)
-                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs)
+                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs, f"[{datetime.now()} {exp.experiment_id}]")
         else:
             for j,run in enumerate(SearchRunsIterator(self.mlflow_client, exp.experiment_id)):
-                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs)
+                self._export_run(j, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs, f"[{datetime.now()} {exp.experiment_id}]")
 
         info_attr = {
             "num_total_runs": (j+1),
@@ -78,13 +78,13 @@ class ExperimentExporter():
         return len(ok_run_ids), len(failed_run_ids) 
 
 
-    def _export_run(self, idx, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs):
+    def _export_run(self, idx, run, output_dir, ok_run_ids, failed_run_ids, previous_ok_runs, log_prefix):
         run_dir = os.path.join(output_dir, run.info.run_id)
         if self.skip_previous_ok_runs and run.info.run_id in previous_ok_runs:
-            print(f"Skipping run {idx+1}: {run.info.run_id}")
+            print(f"{log_prefix} Skipping run {idx+1}: {run.info.run_id}")
             res = True
         else:
-            print(f"Exporting run {idx+1}: {run.info.run_id}")
+            print(f"{log_prefix} Exporting run {idx+1}: {run.info.run_id}")
             res = self.run_exporter.export_run(run.info.run_id, run_dir)
         if res:
             ok_run_ids.append(run.info.run_id)
