@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABCMeta
 
-MAX_RESULTS = 1000
+MAX_RESULTS = 500
 
 class BaseIterator(metaclass=ABCMeta):
     """

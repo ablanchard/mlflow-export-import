@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 class ExperimentExporter():
 
-    def __init__(self, mlflow_client, notebook_formats=None, save_interval=50000):
+    def __init__(self, mlflow_client, notebook_formats=None, save_interval=50000, run_max_results=500):
         """
         :param mlflow_client: MLflow client.
         :param notebook_formats: List of notebook formats to export. Values are SOURCE, HTML, JUPYTER or DBC.
@@ -26,6 +26,7 @@ class ExperimentExporter():
         self.skip_previous_ok_runs = True
         self.run_exporter = RunExporter(self.mlflow_client, notebook_formats=notebook_formats)
         self.save_status_interval = save_interval
+        self.run_max_results=run_max_results
 
     def _get_previous_ok_runs(self, output_dir):
         manifest_path = os.path.join(output_dir, "experiment.json")
@@ -95,7 +96,7 @@ class ExperimentExporter():
         j = -1
         ok_run_ids = self._get_previous_ok_runs(output_dir)
         if not run_ids:
-            run_ids = SearchRunsIterator(self.mlflow_client, exp.experiment_id)
+            run_ids = SearchRunsIterator(self.mlflow_client, exp.experiment_id, max_results=self.run_max_results)
         
         futures = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:

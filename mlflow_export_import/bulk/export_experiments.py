@@ -37,7 +37,7 @@ def _export_experiment(client, exp_id_or_name, output_dir, exporter, export_resu
     return ok_runs, failed_runs
 
 
-def export_experiments(client, experiments, output_dir, notebook_formats=None, nb_threads_all=1, save_interval=50000):
+def export_experiments(client, experiments, output_dir, notebook_formats=None, nb_threads_all=1, save_interval=50000, run_max_results=500):
     """
     :param: experiments: Can be either:
       - List of experiment names 
@@ -69,7 +69,7 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, n
     failed_runs = 0
     export_results = []
     futures = []
-    exporter = ExperimentExporter(client, notebook_formats=utils.string_to_list(notebook_formats), save_interval=save_interval)
+    exporter = ExperimentExporter(client, notebook_formats=utils.string_to_list(notebook_formats), save_interval=save_interval, run_max_results=run_max_results)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for exp_id_or_name in experiments:
             run_ids = experiments_dct.get(exp_id_or_name, None)
@@ -109,7 +109,8 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, n
 @opt_notebook_formats
 @opt_nb_threads_all
 @opt_save_interval
-def main(experiments, output_dir, notebook_formats, nb_threads_all, save_interval):
+@opt_run_max_results
+def main(experiments, output_dir, notebook_formats, nb_threads_all, save_interval, run_max_results):
     print("Options:")
     for k,v in locals().items():
         print(f"  {k}: {v}")
@@ -119,7 +120,8 @@ def main(experiments, output_dir, notebook_formats, nb_threads_all, save_interva
         output_dir=output_dir,
         notebook_formats=notebook_formats,
         nb_threads_all=nb_threads_all,
-        save_interval=save_interval
+        save_interval=save_interval,
+        run_max_results=run_max_results
         )
 
 

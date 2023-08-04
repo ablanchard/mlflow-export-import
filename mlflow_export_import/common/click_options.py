@@ -120,6 +120,14 @@ def opt_save_interval(function):
         show_default=True)(function)
     return function
 
+def opt_run_max_results(function):
+    click.option("--run-max-results",
+        help="Max results runs to fetch from mlflow API",
+        type=int,
+        default=500,
+        show_default=True)(function)
+    return function
+
 def opt_delete_model(function):
     function = click.option("--delete-model",
         help="If the model exists, first delete the model and all its versions.",
