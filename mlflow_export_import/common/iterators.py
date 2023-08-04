@@ -64,9 +64,11 @@ class ListRegisteredModelsIterator(BaseIterator):
     """
 
     def _call_iter(self):
+        print("call_iter")
         return self.client.search_registered_models(max_results=self.max_results)
 
     def _call_next(self):
+        print("call_next")
         return self.client.search_registered_models(max_results=self.max_results, page_token=self.paged_list.token)
 
 

@@ -47,6 +47,7 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, u
     """
     start_time = time.time()
     max_workers = os.cpu_count() or 4 if use_threads else 1
+    print(f"Using {max_workers} threads")
 
     export_all_runs = not isinstance(experiments, dict) 
     experiments = bulk_utils.get_experiment_ids(client, experiments)
