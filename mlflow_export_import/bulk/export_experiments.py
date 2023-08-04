@@ -14,13 +14,13 @@ from mlflow_export_import.bulk import bulk_utils
 from mlflow_export_import.experiment.export_experiment import ExperimentExporter
 
 
-def _export_experiment(client, exp_id_or_name, output_dir, exporter, export_results, run_ids):
+def _export_experiment(client, exp_id_or_name, output_dir, exporter, export_results, run_ids, running_threads):
     exp = mlflow_utils.get_experiment(client, exp_id_or_name)
     exp_output = os.path.join(output_dir, exp.experiment_id)
     ok_runs = -1; failed_runs = -1
     try:
         start_time = time.time()
-        ok_runs, failed_runs = exporter.export_experiment(exp.experiment_id, exp_output, run_ids)
+        ok_runs, failed_runs = exporter.export_experiment(exp.experiment_id, exp_output, running_threads, run_ids)
         duration = round(time.time() - start_time, 1)
         result = {
             "id" : exp.experiment_id, 
@@ -46,8 +46,8 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, u
       - String with comma-delimited experiment names or IDs such as 'sklearn_wine,sklearn_iris' or '1,2'
     """
     start_time = time.time()
-    max_workers = os.cpu_count() or 4 if use_threads else 1
-    print(f"Using {max_workers} threads")
+    max_workers = 1
+    print(f"[All] Using {max_workers} threads")
 
     export_all_runs = not isinstance(experiments, dict) 
     experiments = bulk_utils.get_experiment_ids(client, experiments)
@@ -73,7 +73,7 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, u
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for exp_id_or_name in experiments:
             run_ids = experiments_dct.get(exp_id_or_name, None)
-            future = executor.submit(_export_experiment, client, exp_id_or_name, output_dir, exporter, export_results, run_ids)
+            future = executor.submit(_export_experiment, client, exp_id_or_name, output_dir, exporter, export_results, run_ids, max_workers)
             futures.append(future)
     duration = round(time.time() - start_time, 1)
     ok_runs = 0
