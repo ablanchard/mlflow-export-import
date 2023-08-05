@@ -14,6 +14,8 @@ from mlflow_export_import.run.export_run import RunExporter
 from mlflow_export_import.common import utils
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures._base import TimeoutError
 
 class ExperimentExporter():
 
@@ -41,11 +43,32 @@ class ExperimentExporter():
         raise Exception("Unknown manifest format")
     
 
+    def _get_done_futures(self, futures):
+        done_futures = []
+        for future in futures:
+            try:
+                future.result(timeout=0.001)
+                done_futures.append(future)
+            except TimeoutError:
+                continue
+        return done_futures
+
+    
+
     def _save_status(self, output_dir, exp, ok_run_ids, failed_run_ids, futures, total_run):
         print(f"[{datetime.now()} {exp.experiment_id}] Saving status after {total_run} runs")
 
         # Waiting on futures
         print(f"[{datetime.now()} {exp.experiment_id}] Waiting on {len(futures)} futures")
+        start_waiting = time.time()
+        total_futures = len(futures)
+        done_futures = len(self._get_done_futures(futures))
+        while done_futures != total_futures:
+            waiting_time = time.time() - start_waiting
+            print(f"[{datetime.now()} {exp.experiment_id}] After {waiting_time:.2f}s, {done_futures} done futures avg: {done_futures/waiting_time:.2f} exports/s")
+            time.sleep(5)
+            done_futures = len(self._get_done_futures(futures))
+
         for future in futures:
             result = future.result()
             if result[0]:
