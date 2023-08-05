@@ -112,6 +112,15 @@ def opt_nb_threads_all(function):
         show_default=True)(function)
     return function
 
+
+def opt_threads(function):
+    click.option("--threads",
+        help="Number of threads to use",
+        type=int,
+        default=12,
+        show_default=True)(function)
+    return function
+
 def opt_save_interval(function):
     click.option("--save-interval",
         help="Every X runs to save the progress in the experiment.json",

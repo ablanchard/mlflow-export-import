@@ -11,8 +11,9 @@ import time
 client = mlflow.tracking.MlflowClient()
 all_run_ids = []
 start_time = time.time()
-for j,run in enumerate(SearchRunsIterator(client, "1409965")):
-    print(f"doing run {j}")
+iterator = SearchRunsIterator(client, "1409965")
+for j,run in enumerate(iterator):
+    print(f"doing run {j}, {iterator.paged_list.token}")
     all_run_ids.append(run.info.run_id)
 
 print(f"done {len(all_run_ids)} runs in {start_time - time.time()}")

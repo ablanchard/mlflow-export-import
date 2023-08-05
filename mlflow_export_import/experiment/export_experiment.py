@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 class ExperimentExporter():
 
-    def __init__(self, mlflow_client, notebook_formats=None, save_interval=50000, run_max_results=500):
+    def __init__(self, mlflow_client, notebook_formats=None, save_interval=50000, run_max_results=500, threads=12):
         """
         :param mlflow_client: MLflow client.
         :param notebook_formats: List of notebook formats to export. Values are SOURCE, HTML, JUPYTER or DBC.
@@ -27,6 +27,7 @@ class ExperimentExporter():
         self.run_exporter = RunExporter(self.mlflow_client, notebook_formats=notebook_formats)
         self.save_status_interval = save_interval
         self.run_max_results=run_max_results
+        self.threads = threads
 
     def _get_previous_ok_runs(self, output_dir):
         manifest_path = os.path.join(output_dir, "experiment.json")
@@ -81,15 +82,14 @@ class ExperimentExporter():
             return unknow_object
         return unknow_object.info.run_id
 
-    def export_experiment(self, exp_id_or_name, output_dir, running_threads, run_ids=None):
+    def export_experiment(self, exp_id_or_name, output_dir, run_ids=None):
         """
         :param exp_id_or_name: Experiment ID or name.
         :param output_dir: Output directory.
         :param run_ids: List of run IDs to export. If None export all run IDs.
         :return: Number of successful and number of failed runs.
         """
-        max_workers = int(os.cpu_count() / running_threads)
-        print(f"[exp: {exp_id_or_name}] Using {max_workers} threads")
+        print(f"[exp: {exp_id_or_name}] Using {self.threads} threads")
         exp = mlflow_utils.get_experiment(self.mlflow_client, exp_id_or_name)
         print(f"Exporting experiment '{exp.name}' (ID {exp.experiment_id}) to '{output_dir}'")
         failed_run_ids = set()
@@ -99,7 +99,7 @@ class ExperimentExporter():
             run_ids = SearchRunsIterator(self.mlflow_client, exp.experiment_id, max_results=self.run_max_results)
         
         futures = []
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=self.threads) as executor:
             for j,run in enumerate(run_ids):
                 run_id = self.get_run_id(run)
                 if self.skip_previous_ok_runs and run_id in ok_run_ids:

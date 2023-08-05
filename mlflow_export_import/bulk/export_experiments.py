@@ -14,13 +14,13 @@ from mlflow_export_import.bulk import bulk_utils
 from mlflow_export_import.experiment.export_experiment import ExperimentExporter
 
 
-def _export_experiment(client, exp_id_or_name, output_dir, exporter, export_results, run_ids, running_threads):
+def _export_experiment(client, exp_id_or_name, output_dir, exporter, export_results, run_ids):
     exp = mlflow_utils.get_experiment(client, exp_id_or_name)
     exp_output = os.path.join(output_dir, exp.experiment_id)
     ok_runs = -1; failed_runs = -1
     try:
         start_time = time.time()
-        ok_runs, failed_runs = exporter.export_experiment(exp.experiment_id, exp_output, running_threads, run_ids)
+        ok_runs, failed_runs = exporter.export_experiment(exp.experiment_id, exp_output, run_ids)
         duration = round(time.time() - start_time, 1)
         result = {
             "id" : exp.experiment_id, 
@@ -37,7 +37,7 @@ def _export_experiment(client, exp_id_or_name, output_dir, exporter, export_resu
     return ok_runs, failed_runs
 
 
-def export_experiments(client, experiments, output_dir, notebook_formats=None, nb_threads_all=1, save_interval=50000, run_max_results=500):
+def export_experiments(client, experiments, output_dir, notebook_formats=None, nb_threads_all=1, threads=12, save_interval=50000, run_max_results=500):
     """
     :param: experiments: Can be either:
       - List of experiment names 
@@ -46,8 +46,8 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, n
       - String with comma-delimited experiment names or IDs such as 'sklearn_wine,sklearn_iris' or '1,2'
     """
     start_time = time.time()
-    max_workers = nb_threads_all
-    print(f"[All] Using {max_workers} threads")
+    threads_for_all_experiments = nb_threads_all
+    print(f"[All] Using {threads_for_all_experiments} threads")
 
     export_all_runs = not isinstance(experiments, dict) 
     experiments = bulk_utils.get_experiment_ids(client, experiments)
@@ -69,11 +69,12 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, n
     failed_runs = 0
     export_results = []
     futures = []
-    exporter = ExperimentExporter(client, notebook_formats=utils.string_to_list(notebook_formats), save_interval=save_interval, run_max_results=run_max_results)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    threads_per_experiment = threads / threads_for_all_experiments
+    exporter = ExperimentExporter(client, notebook_formats=utils.string_to_list(notebook_formats), save_interval=save_interval, run_max_results=run_max_results, threads=threads_per_experiment)
+    with ThreadPoolExecutor(max_workers=threads_for_all_experiments) as executor:
         for exp_id_or_name in experiments:
             run_ids = experiments_dct.get(exp_id_or_name, None)
-            future = executor.submit(_export_experiment, client, exp_id_or_name, output_dir, exporter, export_results, run_ids, max_workers)
+            future = executor.submit(_export_experiment, client, exp_id_or_name, output_dir, exporter, export_results, run_ids)
             futures.append(future)
     duration = round(time.time() - start_time, 1)
     ok_runs = 0
@@ -108,9 +109,10 @@ def export_experiments(client, experiments, output_dir, notebook_formats=None, n
 @opt_output_dir
 @opt_notebook_formats
 @opt_nb_threads_all
+@opt_threads
 @opt_save_interval
 @opt_run_max_results
-def main(experiments, output_dir, notebook_formats, nb_threads_all, save_interval, run_max_results):
+def main(experiments, output_dir, notebook_formats, nb_threads_all, threads, save_interval, run_max_results):
     print("Options:")
     for k,v in locals().items():
         print(f"  {k}: {v}")
@@ -120,6 +122,7 @@ def main(experiments, output_dir, notebook_formats, nb_threads_all, save_interva
         output_dir=output_dir,
         notebook_formats=notebook_formats,
         nb_threads_all=nb_threads_all,
+        threads=threads,
         save_interval=save_interval,
         run_max_results=run_max_results
         )
