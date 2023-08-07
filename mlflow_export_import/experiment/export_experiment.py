@@ -105,7 +105,9 @@ class ExperimentExporter():
             "num_failed_runs": len(failed_run_ids),
             "failed_runs": list(failed_run_ids)
         }
+        print(f"{type(iterator)} {iterator}")
         if iterator:
+            print(f"{iterator.paged_list.token}")
             info_attr["last_page_token"] = iterator.paged_list.token
         exp_dct = utils.strip_underscores(exp) 
         exp_dct["tags"] = dict(sorted(exp_dct["tags"].items()))
