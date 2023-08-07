@@ -71,7 +71,7 @@ class ListRegisteredModelsIterator(BaseIterator):
 
 
 class SearchRunsIterator(BaseIterator):
-    def __init__(self, client, experiment_id, max_results=MAX_RESULTS, query="", order_by="start_time ASC, run_id", initial_page_token=None):
+    def __init__(self, client, experiment_id, max_results=MAX_RESULTS, query="", order_by=["start_time", "run_id"], initial_page_token=None):
         super().__init__(client, max_results)
         self.experiment_id = experiment_id
         self.query = query
