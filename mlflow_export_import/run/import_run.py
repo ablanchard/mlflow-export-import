@@ -26,6 +26,7 @@ from mlflow_export_import.common import io_utils
 from mlflow_export_import.common import filesystem as _filesystem
 from mlflow_export_import.common import MlflowExportImportException
 from mlflow_export_import.run import run_data_importer
+from datetime import datetime
 
 
 class RunImporter():
@@ -58,7 +59,7 @@ class RunImporter():
         print(f"importing_into_databricks: {utils.importing_into_databricks()}")
 
 
-    def import_run(self, exp_name, input_dir, dst_notebook_dir=None):
+    def import_run(self, exp_name, input_dir, src_run_id, dst_notebook_dir=None):
         """ 
         Imports a run into the specified experiment.
         :param exp_name: Experiment name.
@@ -66,16 +67,16 @@ class RunImporter():
         :param dst_notebook_dir: Databricks destination workpsace directory for notebook.
         :return: The run and its parent run ID if the run is a nested run.
         """
-        print(f"Importing run from '{input_dir}'")
-        res = self._import_run(exp_name, input_dir, dst_notebook_dir)
+        print(f"[{datetime.now()}][{exp_name}] Importing run from '{input_dir}'")
+        res = self._import_run(exp_name, input_dir, src_run_id, dst_notebook_dir)
         if res[0]:
-            print(f"Imported run into '{exp_name}/{res[0].info.run_id}'")
+            print(f"[{datetime.now()}][{exp_name}] Imported run into '{exp_name}/{res[0].info.run_id}'")
         else:
-            print(f"ERROR failed run: {input_dir}")
+            print(f"[{datetime.now()}][{exp_name}] ERROR failed run: {input_dir}")
         return res
 
 
-    def _import_run(self, dst_exp_name, input_dir, dst_notebook_dir):
+    def _import_run(self, dst_exp_name, input_dir, src_run_id, dst_notebook_dir):
         exp_id = mlflow_utils.set_experiment(self.mlflow_client, self.dbx_client, dst_exp_name)
         exp = self.mlflow_client.get_experiment(exp_id)
         src_run_path = os.path.join(input_dir,"run.json")
@@ -102,12 +103,12 @@ class RunImporter():
             self.mlflow_client.set_terminated(run_id, RunStatus.to_string(RunStatus.FAILED))
             import traceback
             traceback.print_exc()
-            return (None, None)
+            return (None, None, src_run_id)
         if utils.importing_into_databricks() and dst_notebook_dir:
             ndir = os.path.join(dst_notebook_dir, run_id) if self.dst_notebook_dir_add_run_id else dst_notebook_dir
             self._upload_databricks_notebook(input_dir, src_run_dct, ndir)
 
-        return (run, src_run_dct["tags"].get(MLFLOW_PARENT_RUN_ID,None))
+        return (run, src_run_dct["tags"].get(MLFLOW_PARENT_RUN_ID,None), src_run_id)
 
 
     def _update_mlmodel_run_id(self, run_id):

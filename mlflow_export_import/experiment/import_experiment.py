@@ -13,6 +13,10 @@ from mlflow_export_import.common import mlflow_utils
 from mlflow_export_import.common.http_client import DatabricksHttpClient
 from mlflow_export_import.run.import_run import RunImporter
 from mlflow_export_import.common.source_tags import set_source_tags_for_field, mk_source_tags_mlflow_tag, fmt_timestamps
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures._base import TimeoutError
 
 
 def _peek_at_experiments(exp_dir):
@@ -22,7 +26,7 @@ def _peek_at_experiments(exp_dir):
 
 class ExperimentImporter():
 
-    def __init__(self, mlflow_client, import_source_tags=False, mlmodel_fix=True, use_src_user_id=False, conf={}):
+    def __init__(self, mlflow_client, import_source_tags=False, mlmodel_fix=True, use_src_user_id=False, conf={}, save_status_interval=20000, threads=12):
         """
         :param mlflow_client: MLflow client.
         :param import_source_tags: Import source information for MLFlow objects and create tags in destination object.
@@ -39,6 +43,19 @@ class ExperimentImporter():
         self.dbx_client = DatabricksHttpClient()
         self.import_source_tags = import_source_tags
         self.conf = conf
+        self.save_status_interval = save_status_interval
+        self.threads = threads
+
+
+    def _get_done_futures(self, futures):
+        done_futures = []
+        for future in futures:
+            try:
+                future.result(timeout=0.001)
+                done_futures.append(future)
+            except TimeoutError:
+                continue
+        return done_futures
 
 
     def read_previous_import(self, input_dir):
@@ -47,7 +64,29 @@ class ExperimentImporter():
             return io_utils.read_file(path)
         return {"runs": {}}
 
-    def save_import_status(self, input_dir, previous_import, merge_runs):
+    def save_import_status(self, input_dir, previous_import, run_ids_map, run_info_map, experiment_id, futures, total_run):
+        print(f"[{datetime.now()} {experiment_id}] Saving status after {total_run} runs")
+        # Waiting on futures
+        print(f"[{datetime.now()} {experiment_id}] Waiting on {len(futures)} futures")
+        start_waiting = time.time()
+        total_futures = len(futures)
+        done_futures = len(self._get_done_futures(futures))
+        while done_futures != total_futures:
+            waiting_time = time.time() - start_waiting
+            print(f"[{datetime.now()} {experiment_id}] After {waiting_time:.2f}s, {done_futures} done futures avg: {done_futures/waiting_time:.2f} imports/s")
+            time.sleep(5)
+            done_futures = len(self._get_done_futures(futures))
+
+        for future in futures:
+            dst_run, src_parent_run_id, src_run_id = future.result()
+            if dst_run:
+                dst_run_id = dst_run.info.run_id
+                run_ids_map[src_run_id] = { "dst_run_id": dst_run_id, "src_parent_run_id": src_parent_run_id, "artifact_uri": dst_run.info.artifact_uri }
+                run_info_map[src_run_id] = dst_run.info
+
+        
+        merge_runs = { **previous_import["runs"], **run_ids_map }
+        utils.nested_tags(self.mlflow_client, merge_runs)
         previous_import["runs"] = merge_runs
         path = os.path.join(input_dir, "import-experiment.json")
         io_utils.write_file(path, previous_import)
@@ -60,6 +99,7 @@ class ExperimentImporter():
             if exp_name.startswith(f"/Users/{user}"):
                 return exp_name.replace("/Users/", "/Archive/")
         return exp_name
+    
 
     def import_experiment(self, exp_name, input_dir, dst_notebook_dir=None):
         """
@@ -101,23 +141,26 @@ class ExperimentImporter():
         failed_run_ids = info["failed_runs"]
         to_do_runs = set(run_ids) - set(previous_import["runs"].keys())
 
-        print(f"Importing {len(run_ids)} runs, skipping {len(run_ids) - len(to_do_runs)} runs into experiment '{exp_name}' from {input_dir}")
+        print(f"[{datetime.now()}][{experiment_id}] Importing {len(run_ids)} runs, skipping {len(run_ids) - len(to_do_runs)} runs into experiment '{exp_name}' from {input_dir}")
         run_ids_map = {}
         run_info_map = {}
-        for src_run_id in to_do_runs:
-            dst_run, src_parent_run_id = self.run_importer.import_run(exp_name, os.path.join(input_dir, src_run_id), dst_notebook_dir)
-            if not dst_run:
-                continue
-            dst_run_id = dst_run.info.run_id
-            run_ids_map[src_run_id] = { "dst_run_id": dst_run_id, "src_parent_run_id": src_parent_run_id, "artifact_uri": dst_run.info.artifact_uri }
-            run_info_map[src_run_id] = dst_run.info
-        print(f"Imported {len(run_ids)} runs into experiment '{exp_name}' from {input_dir}")
+        i = -1
+
+        futures = []
+        with ThreadPoolExecutor(max_workers=self.threads) as executor:
+            for i, src_run_id in enumerate(to_do_runs):
+                future = executor.submit(self.run_importer.import_run, exp_name, os.path.join(input_dir, src_run_id), src_run_id, dst_notebook_dir)
+                futures.append(future)
+                print(f"[{datetime.now()} {experiment_id}] future added for run {i+1}: {src_run_id}")
+                # Regularly save status so it's easy to restart
+                if len(futures) == self.save_status_interval:
+                    self.save_import_status(input_dir, previous_import, run_ids_map, run_info_map, experiment_id, futures, i)
+                    futures = []
+                
+        print(f"[{datetime.now()}][{experiment_id}] Imported {len(run_ids)} runs into experiment '{exp_name}' from {input_dir}")
         if len(failed_run_ids) > 0:
             print(f"Warning: {len(failed_run_ids)} failed runs were not imported - see '{path}'")
-        # Adding the run_id_map to the previous import status.
-        merge_runs = { **previous_import["runs"], **run_ids_map }
-        utils.nested_tags(self.mlflow_client, merge_runs)
-        self.save_import_status(input_dir, previous_import, merge_runs)
+        self.save_import_status(input_dir, previous_import, run_ids_map, run_info_map, experiment_id, futures, i)
         return run_info_map
 
 

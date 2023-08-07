@@ -21,7 +21,7 @@ def _import_experiment(importer, exp_name, exp_input_dir):
         traceback.print_exc()
 
 
-def import_experiments(client, input_dir, use_src_user_id=False, use_threads=False): 
+def import_experiments(client, input_dir, use_src_user_id=False, nb_threads_all=1, threads=12, save_interval=20000): 
     dct = io_utils.read_file_mlflow(os.path.join(input_dir, "experiments.json"))
     exps = dct["experiments"]
     for exp in exps:
@@ -33,8 +33,9 @@ def import_experiments(client, input_dir, use_src_user_id=False, use_threads=Fal
     else:
         conf = {}
 
-    importer = ExperimentImporter(client, use_src_user_id=use_src_user_id, conf=conf)
-    max_workers = os.cpu_count() or 4 if use_threads else 1
+    max_workers = nb_threads_all
+    threads_per_experiment = threads / nb_threads_all
+    importer = ExperimentImporter(client, use_src_user_id=use_src_user_id, conf=conf, save_status_interval=save_interval, threads=threads_per_experiment)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for exp in exps:
             exp_input_dir = os.path.join(input_dir,exp["id"])
@@ -45,13 +46,15 @@ def import_experiments(client, input_dir, use_src_user_id=False, use_threads=Fal
 @click.command()
 @opt_input_dir
 @opt_use_src_user_id
-@opt_use_threads
-def main(input_dir, use_src_user_id, use_threads): 
+@opt_nb_threads_all
+@opt_threads
+@opt_save_interval
+def main(input_dir, use_src_user_id, nb_threads_all, threads, save_interval): 
     print("Options:")
     for k,v in locals().items():
         print(f"  {k}: {v}")
     client = mlflow.tracking.MlflowClient()
-    import_experiments(client, input_dir, use_src_user_id, use_threads)
+    import_experiments(client, input_dir, use_src_user_id,  nb_threads_all, threads, save_interval)
 
 if __name__ == "__main__":
     main()
