@@ -71,10 +71,11 @@ class ListRegisteredModelsIterator(BaseIterator):
 
 
 class SearchRunsIterator(BaseIterator):
-    def __init__(self, client, experiment_id, max_results=MAX_RESULTS, query="", order_by=["start_time", "run_id"], initial_page_token=None):
+    def __init__(self, client, experiment_id, max_results=MAX_RESULTS, query="", order_by=["start_time"], initial_page_token=None):
         super().__init__(client, max_results)
         self.experiment_id = experiment_id
         self.query = query
+        # Order by is determinist because mlflow apply a run_id sort at the end
         self.order_by = order_by
         self.inital_page_token = initial_page_token
 
