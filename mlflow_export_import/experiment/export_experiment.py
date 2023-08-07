@@ -43,6 +43,27 @@ class ExperimentExporter():
         raise Exception("Unknown manifest format")
     
 
+    def _get_previous_page_token(self, output_dir):
+        manifest_path = os.path.join(output_dir, "experiment.json")
+        if not os.path.exists(manifest_path):
+            return set()
+        manifest = io_utils.read_file(manifest_path)
+        if "info" in manifest:
+            return manifest["info"].get("last_page_token", None)
+        raise Exception("Unknown manifest format")
+    
+
+
+    def _get_previous_failed_runs(self, output_dir):
+        manifest_path = os.path.join(output_dir, "experiment.json")
+        if not os.path.exists(manifest_path):
+            return set()
+        manifest = io_utils.read_file(manifest_path)
+        if "info" in manifest:
+            return set(manifest["info"]["failed_runs"])
+        raise Exception("Unknown manifest format")
+    
+
     def _get_done_futures(self, futures):
         done_futures = []
         for future in futures:
@@ -55,7 +76,7 @@ class ExperimentExporter():
 
     
 
-    def _save_status(self, output_dir, exp, ok_run_ids, failed_run_ids, futures, total_run):
+    def _save_status(self, output_dir, exp, ok_run_ids, failed_run_ids, futures, total_run, iterator):
         print(f"[{datetime.now()} {exp.experiment_id}] Saving status after {total_run} runs")
 
         # Waiting on futures
@@ -84,6 +105,8 @@ class ExperimentExporter():
             "num_failed_runs": len(failed_run_ids),
             "failed_runs": list(failed_run_ids)
         }
+        if iterator:
+            info_attr["last_page_token"] = iterator.paged_list.token
         exp_dct = utils.strip_underscores(exp) 
         exp_dct["tags"] = dict(sorted(exp_dct["tags"].items()))
 
@@ -115,15 +138,19 @@ class ExperimentExporter():
         print(f"[exp: {exp_id_or_name}] Using {self.threads} threads")
         exp = mlflow_utils.get_experiment(self.mlflow_client, exp_id_or_name)
         print(f"Exporting experiment '{exp.name}' (ID {exp.experiment_id}) to '{output_dir}'")
-        failed_run_ids = set()
+        failed_run_ids = self._get_previous_failed_runs(output_dir)
         j = -1
         ok_run_ids = self._get_previous_ok_runs(output_dir)
+        iterator = None
         if not run_ids:
-            run_ids = SearchRunsIterator(self.mlflow_client, exp.experiment_id, max_results=self.run_max_results)
+            iterator = SearchRunsIterator(self.mlflow_client, exp.experiment_id, max_results=self.run_max_results, initial_page_token=self._get_previous_page_token(output_dir))
+            enumerate_obj = enumerate(iterator)
+        else:
+            enumerate_obj = enumerate(run_ids)
         
         futures = []
         with ThreadPoolExecutor(max_workers=self.threads) as executor:
-            for j,run in enumerate(run_ids):
+            for j,run in enumerate_obj:
                 run_id = self.get_run_id(run)
                 if self.skip_previous_ok_runs and run_id in ok_run_ids:
                     print(f"[{datetime.now()} {exp.experiment_id}] Skipping run {j+1}: {run_id}")
@@ -133,11 +160,11 @@ class ExperimentExporter():
                     print(f"[{datetime.now()} {exp.experiment_id}] future added for run {j+1}: {run_id}")
                 # Regularly save status so it's easy to restart
                 if len(futures) == self.save_status_interval:
-                    self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j)
+                    self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j, iterator)
                     futures = []
 
         # Finally save status
-        self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j)
+        self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j, iterator)
 
         # Print result
         self._log_result_statement(exp, ok_run_ids, failed_run_ids, j)

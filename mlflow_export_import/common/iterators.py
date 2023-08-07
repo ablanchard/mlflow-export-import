@@ -71,16 +71,20 @@ class ListRegisteredModelsIterator(BaseIterator):
 
 
 class SearchRunsIterator(BaseIterator):
-    def __init__(self, client, experiment_id, max_results=MAX_RESULTS, query=""):
+    def __init__(self, client, experiment_id, max_results=MAX_RESULTS, query="", order_by="start_time ASC, run_id", initial_page_token=None):
         super().__init__(client, max_results)
         self.experiment_id = experiment_id
         self.query = query
+        self.order_by = order_by
+        self.inital_page_token = initial_page_token
 
     def _call_iter(self):
-        return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results)
+        if self.inital_page_token:
+            return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results, order_by=self.order_by, page_token=self.inital_page_token)
+        return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results, order_by=self.order_by)
 
     def _call_next(self):
-        return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results, page_token=self.paged_list.token)
+        return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results, order_by=self.order_by, page_token=self.paged_list.token)
 
 
 class SearchRegisteredModelsIterator(BaseIterator):
