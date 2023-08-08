@@ -107,7 +107,7 @@ class ExperimentExporter():
             "failed_runs": list(failed_run_ids)
         }
         # The last page will have a None token, we want to keep the last real token
-        if iterator and iterator.paged_list.token:
+        if iterator:
             if iterator.paged_list.token:
                 info_attr["last_page_token"] = iterator.paged_list.token
             else:
@@ -188,15 +188,21 @@ class ExperimentExporter():
 @opt_experiment
 @opt_output_dir
 @opt_notebook_formats
-def main(experiment, output_dir, notebook_formats):
+@opt_threads
+@opt_save_interval
+@opt_run_max_results
+def main(experiment, output_dir, notebook_formats, threads, save_interval, run_max_results):
     print("Options:")
     for k,v in locals().items():
         print(f"  {k}: {v}")
     client = mlflow.tracking.MlflowClient()
     exporter = ExperimentExporter(
         client,
-        notebook_formats=utils.string_to_list(notebook_formats))
-    exporter.export_experiment(experiment, output_dir, 1)
+        notebook_formats=utils.string_to_list(notebook_formats),
+        threads=threads,
+        save_interval=save_interval,
+        run_max_results=run_max_results)
+    exporter.export_experiment(experiment, os.path.join(output_dir, experiment))
 
 if __name__ == "__main__":
     main()
