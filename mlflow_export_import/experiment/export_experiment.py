@@ -46,7 +46,7 @@ class ExperimentExporter():
     def _get_previous_page_token(self, output_dir):
         manifest_path = os.path.join(output_dir, "experiment.json")
         if not os.path.exists(manifest_path):
-            return set()
+            return None
         manifest = io_utils.read_file(manifest_path)
         if "info" in manifest:
             return manifest["info"].get("last_page_token", None)
@@ -106,8 +106,12 @@ class ExperimentExporter():
             "num_failed_runs": len(failed_run_ids),
             "failed_runs": list(failed_run_ids)
         }
-        if iterator:
-            info_attr["last_page_token"] = iterator.paged_list.token
+        # The last page will have a None token, we want to keep the last real token
+        if iterator and iterator.paged_list.token:
+            if iterator.paged_list.token:
+                info_attr["last_page_token"] = iterator.paged_list.token
+            else:
+                info_attr["last_page_token"] = self._get_previous_page_token(output_dir)
         exp_dct = utils.strip_underscores(exp) 
         exp_dct["tags"] = dict(sorted(exp_dct["tags"].items()))
 

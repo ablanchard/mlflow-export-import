@@ -80,6 +80,7 @@ class SearchRunsIterator(BaseIterator):
         self.inital_page_token = initial_page_token
 
     def _call_iter(self):
+        print(f"Start iterator with token: {self.inital_page_token}")
         if self.inital_page_token:
             return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results, order_by=self.order_by, page_token=self.inital_page_token)
         return self.client.search_runs(self.experiment_id, self.query, max_results=self.max_results, order_by=self.order_by)
