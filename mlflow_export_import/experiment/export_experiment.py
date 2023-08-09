@@ -76,7 +76,7 @@ class ExperimentExporter():
 
     
 
-    def _save_status(self, output_dir, exp, ok_run_ids, failed_run_ids, futures, total_run, iterator):
+    def _save_status(self, output_dir, exp, ok_run_ids, failed_run_ids, futures, total_run, last_non_null_page_token):
         print(f"[{datetime.now()} {exp.experiment_id}] Saving status after {total_run} runs")
 
         # Waiting on futures
@@ -104,14 +104,9 @@ class ExperimentExporter():
             "num_total_runs": len(ok_run_ids) + len(failed_run_ids),
             "num_ok_runs": len(ok_run_ids),
             "num_failed_runs": len(failed_run_ids),
-            "failed_runs": list(failed_run_ids)
+            "failed_runs": list(failed_run_ids),
+            "last_page_token": last_non_null_page_token
         }
-        # The last page will have a None token, we want to keep the last real token
-        if iterator:
-            if iterator.paged_list.token:
-                info_attr["last_page_token"] = iterator.paged_list.token
-            else:
-                info_attr["last_page_token"] = self._get_previous_page_token(output_dir)
         exp_dct = utils.strip_underscores(exp) 
         exp_dct["tags"] = dict(sorted(exp_dct["tags"].items()))
 
@@ -154,22 +149,28 @@ class ExperimentExporter():
             enumerate_obj = enumerate(run_ids)
         
         futures = []
+        last_non_null_page_token = self._get_previous_page_token(output_dir)
         with ThreadPoolExecutor(max_workers=self.threads) as executor:
             for j,run in enumerate_obj:
                 run_id = self.get_run_id(run)
+                # Skip or export run
                 if self.skip_previous_ok_runs and run_id in ok_run_ids:
                     print(f"[{datetime.now()} {exp.experiment_id}] Skipping run {j+1}: {run_id}")
                 else:
                     future = executor.submit(self._export_run, j, run_id, output_dir, exp.experiment_id)
                     futures.append(future)
                     print(f"[{datetime.now()} {exp.experiment_id}] future added for run {j+1}: {run_id}")
+                # keep track of the page token
+                if iterator:
+                    if iterator.paged_list.token:
+                        last_non_null_page_token = iterator.paged_list.token
                 # Regularly save status so it's easy to restart
                 if len(futures) == self.save_status_interval:
-                    self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j, iterator)
+                    self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j, last_non_null_page_token)
                     futures = []
 
         # Finally save status
-        self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j, iterator)
+        self._save_status(output_dir, exp, ok_run_ids, failed_run_ids, futures, j, last_non_null_page_token)
 
         # Print result
         self._log_result_statement(exp, ok_run_ids, failed_run_ids, j)
