@@ -28,12 +28,12 @@ def import_experiments(client, input_dir, use_src_user_id=False, nb_threads_all=
     if experiments != "all":
         print(f"Will only do: {experiments}")
         experiment_ids_to_do = experiments.split(",")
-        experiments_to_do = list(filter(lambda exp: exp.id in experiment_ids_to_do, experiments_to_do))
+        experiments_to_do = list(filter(lambda exp: exp["id"] in experiment_ids_to_do, experiments_to_do))
 
     if exclude_experiments != "":
         print(f"Will exclude: {exclude_experiments}")
         experiments_ids_to_exclude = exclude_experiments.split(",")
-        experiments_to_do = list(filter(lambda exp: exp.id not in experiments_ids_to_exclude, experiments_to_do))
+        experiments_to_do = list(filter(lambda exp: exp["id"] not in experiments_ids_to_exclude, experiments_to_do))
     
     for exp in experiments_to_do:
         print("  ", exp)
