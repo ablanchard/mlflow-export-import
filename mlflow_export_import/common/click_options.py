@@ -151,8 +151,16 @@ def opt_experiments(function):
         help="Experiment names or IDs (comma delimited).  \
                For example, 'sklearn_wine,sklearn_iris' or '1,2'. 'all' will export all experiments.",
         type=str,
-        required=True
+        default='all'
     )(function)
+    return function
+
+def opt_exclude_experiments(function):
+    click.option("--exclude-experiments",
+        help="Exclude list of experiments from the run",
+        type=str,
+        default="",
+        show_default=True)(function)
     return function
 
 # == other
