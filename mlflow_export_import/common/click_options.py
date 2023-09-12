@@ -155,6 +155,14 @@ def opt_experiments(function):
     )(function)
     return function
 
+def opt_filter_user(function):
+    function = click.option("--filter-user",
+        help="Will only import this user experiments",
+        type=str,
+        default=''
+    )(function)
+    return function
+
 def opt_exclude_experiments(function):
     click.option("--exclude-experiments",
         help="Exclude list of experiments from the run",

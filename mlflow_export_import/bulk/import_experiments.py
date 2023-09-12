@@ -21,7 +21,7 @@ def _import_experiment(importer, exp_name, exp_input_dir):
         traceback.print_exc()
 
 
-def import_experiments(client, input_dir, use_src_user_id=False, nb_threads_all=1, threads=12, save_interval=20000, experiments="all", exclude_experiments=""): 
+def import_experiments(client, input_dir, use_src_user_id=False, nb_threads_all=1, threads=12, save_interval=20000, experiments="all", exclude_experiments="", filter_user=""): 
     dct = io_utils.read_file_mlflow(os.path.join(input_dir, "experiments.json"))
     experiments_to_do = dct["experiments"]
 
@@ -34,6 +34,10 @@ def import_experiments(client, input_dir, use_src_user_id=False, nb_threads_all=
         print(f"Will exclude: {exclude_experiments}")
         experiments_ids_to_exclude = exclude_experiments.split(",")
         experiments_to_do = list(filter(lambda exp: exp["id"] not in experiments_ids_to_exclude, experiments_to_do))
+
+    if filter_user != "":
+        print(f"Will only run on {filter_user} experiments")
+        experiments_to_do = list(filter(lambda exp: filter_user in exp["name"], experiments_to_do))
     
     for exp in experiments_to_do:
         print("  ", exp)
@@ -62,12 +66,13 @@ def import_experiments(client, input_dir, use_src_user_id=False, nb_threads_all=
 @opt_save_interval
 @opt_experiments
 @opt_exclude_experiments
-def main(input_dir, use_src_user_id, nb_threads_all, threads, save_interval, experiments, exclude_experiments): 
+@opt_filter_user
+def main(input_dir, use_src_user_id, nb_threads_all, threads, save_interval, experiments, exclude_experiments, filter_user): 
     print("Options:")
     for k,v in locals().items():
         print(f"  {k}: {v}")
     client = mlflow.tracking.MlflowClient()
-    import_experiments(client, input_dir, use_src_user_id,  nb_threads_all, threads, save_interval, experiments, exclude_experiments)
+    import_experiments(client, input_dir, use_src_user_id,  nb_threads_all, threads, save_interval, experiments, exclude_experiments, filter_user)
 
 if __name__ == "__main__":
     main()
