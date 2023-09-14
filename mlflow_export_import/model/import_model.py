@@ -66,7 +66,7 @@ class BaseModelImporter():
                     description=src_vr["description"], tags=tags, await_creation_for=0)
         return version
 
-    def _import_model(self, model_name, input_dir, delete_model=False):
+    def _import_model(self, model_name, input_dir, delete_model=False, filter_user=""):
         """
         :param model_name: Model name.
         :param input_dir: Input directory.
@@ -84,6 +84,10 @@ class BaseModelImporter():
         # print(f"  Tags: {model_dct.get('tags','')}")
         # print(f"  {len(model_dct['latest_versions'])} latest versions")
         # print(f"  path: {path}")
+
+        if filter_user != "":
+            if model_dct["user_id"] != filter_user:
+                raise Exception(f"Not doing {model_dct['name']} because user_id: {model_dct['user_id']} is not filter_user: {filter_user}")
 
         if not model_name:
             model_name = model_dct["name"]
@@ -172,10 +176,11 @@ class ModelImporter(BaseModelImporter):
 class AllModelImporter(BaseModelImporter):
     """ High-level 'bulk' model importer.  """
 
-    def __init__(self, mlflow_client, run_info_map, run_importer=None, import_source_tags=False, await_creation_for=None, conf={}):
+    def __init__(self, mlflow_client, run_info_map, run_importer=None, import_source_tags=False, await_creation_for=None, conf={}, filter_user=""):
         super().__init__(mlflow_client, run_importer, import_source_tags=import_source_tags, await_creation_for=await_creation_for)
         self.run_info_map = run_info_map
         self.conf = conf
+        self.filter_user = filter_user
 
     
     def fix_missing_version(self, versions):
@@ -262,7 +267,7 @@ class AllModelImporter(BaseModelImporter):
                 previous_versions = io_utils.read_file(os.path.join(input_dir, "import-model.json"))
             else:
                 previous_versions = []
-            model_dct = self._import_model(model_name, input_dir, len(previous_versions) == 0)
+            model_dct = self._import_model(model_name, input_dir, len(previous_versions) == 0, filter_user=self.filter_user)
             # order latest versions by version
             all = model_dct["latest_versions"]
             self.remove_version(all)

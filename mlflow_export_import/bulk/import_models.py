@@ -56,7 +56,7 @@ def _import_experiments(client, input_dir, use_src_user_id):
     return run_info_map, { "experiments": len(exps), "exceptions": exceptions, "duration": duration }
 
 
-def _import_models(client, input_dir, run_info_map, delete_model, import_source_tags, verbose, use_threads):
+def _import_models(client, input_dir, run_info_map, delete_model, import_source_tags, verbose, use_threads, filter_user):
     max_workers = int(os.environ.get("CPU_COUNT", os.cpu_count() or 4)) if use_threads else 1
     start_time = time.time()
 
@@ -67,7 +67,7 @@ def _import_models(client, input_dir, run_info_map, delete_model, import_source_
         conf = io_utils.read_file(os.path.join(input_dir,"import-conf.json"))
     else:
         conf = {}
-    importer = AllModelImporter(client, run_info_map=run_info_map, import_source_tags=import_source_tags, conf=conf)
+    importer = AllModelImporter(client, run_info_map=run_info_map, import_source_tags=import_source_tags, conf=conf, filter_user=filter_user)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for model in models:
@@ -92,12 +92,12 @@ def read_imported_experiments(input_dir):
     return results
 
 
-def import_all(client, input_dir, delete_model, use_src_user_id=False, import_source_tags=False, verbose=False, use_threads=False):
+def import_all(client, input_dir, delete_model, use_src_user_id=False, import_source_tags=False, verbose=False, use_threads=False, filter_user=""):
     start_time = time.time()
     #exp_res = _import_experiments(client, input_dir, use_src_user_id)
     #run_info_map = _remap(exp_res[0])
     run_info_map = read_imported_experiments(input_dir)
-    model_res = _import_models(client, input_dir, run_info_map, delete_model, import_source_tags, verbose, use_threads)
+    model_res = _import_models(client, input_dir, run_info_map, delete_model, import_source_tags, verbose, use_threads, filter_user)
     duration = round(time.time()-start_time, 1)
     dct = { "duration": duration, "model_import": model_res }
     io_utils.write_file("import_report.json", dct)
@@ -112,8 +112,8 @@ def import_all(client, input_dir, delete_model, use_src_user_id=False, import_so
 @opt_verbose
 @opt_import_source_tags
 @opt_use_threads
-
-def main(input_dir, delete_model, use_src_user_id, import_source_tags, verbose, use_threads):
+@opt_filter_user
+def main(input_dir, delete_model, use_src_user_id, import_source_tags, verbose, use_threads, filter_user):
     print("Options:")
     for k,v in locals().items():
         print(f"  {k}: {v}")
@@ -125,7 +125,8 @@ def main(input_dir, delete_model, use_src_user_id, import_source_tags, verbose, 
         use_src_user_id=use_src_user_id, 
         import_source_tags=import_source_tags,
         verbose=verbose, 
-        use_threads=use_threads)
+        use_threads=use_threads,
+        filter_user=filter_user)
 
 
 if __name__ == "__main__":
