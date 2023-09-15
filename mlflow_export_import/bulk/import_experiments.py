@@ -43,7 +43,7 @@ def import_experiments(client, input_dir, use_src_user_id=False, nb_threads_all=
         print("  ", exp)
 
 
-    if os.path.exists(os.path.join(input_dir,"import-conf.json")):
+    if os.path.exists(os.path.join(input_dir, "..", "import-conf.json")):
         conf = io_utils.read_file(os.path.join(input_dir, "..","import-conf.json"))
     else:
         conf = {}
