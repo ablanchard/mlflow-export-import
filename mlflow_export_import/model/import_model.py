@@ -15,6 +15,7 @@ from mlflow_export_import.common import model_utils
 from mlflow_export_import.common.source_tags import set_source_tags_for_field, fmt_timestamps
 from mlflow_export_import.common import MlflowExportImportException
 from mlflow_export_import.run.import_run import RunImporter
+import traceback
 
 
 
@@ -313,9 +314,8 @@ class AllModelImporter(BaseModelImporter):
 
             
         except Exception as e:
-            print(f"Error importing model {model_name}: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Error importing model {model_name}: {traceback.format_exc()}")
+            print(e)
             raise e
 
     def import_version(self, model_name, src_vr, dst_run_id, sleep_time):
