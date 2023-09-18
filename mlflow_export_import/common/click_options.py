@@ -163,6 +163,14 @@ def opt_filter_user(function):
     )(function)
     return function
 
+def opt_model_names(function):
+    function = click.option("--model-names",
+        help="Will only import this models, comma separated",
+        type=str,
+        default=''
+    )(function)
+    return function
+
 def opt_exclude_experiments(function):
     click.option("--exclude-experiments",
         help="Exclude list of experiments from the run",
