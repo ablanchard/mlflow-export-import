@@ -282,10 +282,11 @@ class AllModelImporter(BaseModelImporter):
             print(f"Importing {len(all)} latest versions, skipping {len(previous_versions)} previous versions")
 
             for vr in versions:
-                print(f"Doing {vr['run_id']} version {vr['version']}")
                 src_run_id = vr["run_id"]
                 dst_run_id = self.run_info_map[src_run_id]["dst_run_id"]
-                mlflow.set_experiment(self.replace_if_user_is_archived(vr["_experiment_name"]))
+                experiment_name = self.replace_if_user_is_archived(vr["_experiment_name"])
+                print(f"[{model_name}] Doing {vr['run_id']} version {vr['version']} src_run_id: {src_run_id} dst_run_id: {dst_run_id} experiment_name: {experiment_name}")
+                mlflow.set_experiment(experiment_name)
                 created_version = self.import_version(model_name, vr, dst_run_id, sleep_time)
                 if created_version.version != vr["version"]:
                     print(f"Version mismatch: Source version {vr['version']} was created as version: {created_version.version}")
