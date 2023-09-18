@@ -65,6 +65,8 @@ class BaseModelImporter():
                 model_utils.wait_until_version_is_ready(self.mlflow_client, model_name, int(src_vr["version"]) - 1, sleep_time=1, iterations=300)
                 version = self.mlflow_client.create_model_version(model_name, dst_source, dst_run_id, \
                     description=src_vr["description"], tags=tags, await_creation_for=0)
+            else:
+                raise e
         return version
 
     def _import_model(self, model_name, input_dir, delete_model=False, filter_user=""):
