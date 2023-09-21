@@ -179,6 +179,15 @@ def opt_exclude_experiments(function):
         show_default=True)(function)
     return function
 
+
+def opt_ignore_models(function):
+    click.option("--ignore-models",
+        help="Ignore models from run",
+        type=str,
+        default="",
+        show_default=True)(function)
+    return function
+
 # == other
 
 def opt_model(function):
@@ -197,3 +206,4 @@ def opt_verbose(function):
         show_default=True
     )(function)
     return function
+
